@@ -32,27 +32,38 @@
 
 ## 3. 模块与包结构
 
+后端按**横切 Web 基础设施**和**订单、导出两个业务模块**组织：
+
 ```text
-backend/
-├── src/main/java/com/exportflow/backend/
-│   ├── ExportFlowApplication.java
-│   ├── config/           # 数据库、Redis、RabbitMQ、POI、任务调度配置
-│   ├── domain/
-│   │   ├── order/        # 订单查询、分页、筛选（Controller/Service/Mapper/Entity）
-│   │   ├── export/       # 导出任务核心：Job、Attempt、文件生成
-│   │   └── outbox/       # Outbox 事件表与 Dispatcher
-│   ├── infrastructure/
-│   │   ├── mq/           # RabbitMQ Publisher / Listener
-│   │   ├── redis/        # Redis 进度与幂等工具
-│   │   ├── storage/      # 本地文件读写与清理
-│   │   └── sse/          # SSE 进度推送
-│   ├── shared/           # 统一响应、错误码、常量、工具类
-│   └── web/              # 全局异常处理、拦截器
-└── src/main/resources/
-    ├── application.yml
-    ├── application-local.yml
-    ├── db/migration/     # 初始化脚本（建表 + 11 万 Mock 数据）
+backend/src/main/java/com/example/exportflow/
+├── common/web/           # 横切 Web 基础设施
+│   ├── api/              # 统一响应封装、API 常量
+│   ├── error/            # 全局异常、错误码
+│   ├── config/           # 通用配置（Web、Jackson、拦截器等）
+│   └── trace/            # 链路追踪 / trace_id 相关工具
+├── order/                # 订单业务模块
+│   ├── controller/       # REST 控制器
+│   ├── dto/              # 请求/响应 DTO
+│   ├── service/          # 业务逻辑
+│   ├── mapper/           # MyBatis Mapper 接口
+│   ├── entity/           # 数据库实体
+│   └── vo/               # 视图对象 / 内部值对象
+└── export/               # 导出任务业务模块
+    ├── controller/       # REST 控制器（含下载、SSE）
+    ├── dto/              # 请求/响应 DTO
+    ├── service/          # 任务创建、重试、状态机
+    ├── mapper/           # MyBatis Mapper 接口
+    ├── entity/           # 数据库实体
+    ├── mq/               # MQ 生产者/消费者
+    ├── excel/            # Excel 生成与写入
+    └── schedule/         # 定时任务（清理、Outbox 分发等）
 ```
+
+职责边界：
+
+- `common/web/`：只放与 Web 层横切相关的基础设施，被所有业务模块复用。
+- `order/`、`export/`：按业务领域垂直分包，每个模块内部自包含 controller/dto/service/mapper/entity，避免业务间循环依赖。
+- `export/` 额外包含 `mq/`、`excel/`、`schedule/` 三个子包，承载异步导出、文件生成和定时调度等专属能力。
 
 ## 4. API 设计
 

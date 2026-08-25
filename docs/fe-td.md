@@ -21,9 +21,39 @@
 | 状态管理 | React Context / hooks | MVP 规模下避免引入重量级方案 |
 | UI 组件 | Ant Design / 自定义 | 根据实际项目决定 |
 
-## 3. API 统一封装
+## 3. 目录结构与职责划分
 
-### 3.1 `requestJson`
+ExportFlow 前端按**应用层、API 层和业务 feature** 三层组织，使页面、接口与业务状态按功能聚合，降低跨目录跳转成本。
+
+```text
+frontend/src/
+├── main.tsx              # 应用入口，挂载 React 根节点
+├── App.tsx               # 根组件，配置路由顶层
+├── app/
+│   └── AppLayout.tsx     # 全局布局（导航、页面框架）
+├── api/
+│   ├── http.ts           # HTTP 基础封装、错误处理、通用类型
+│   └── exportApi.ts      # 导出任务相关 API 方法
+└── features/
+    ├── orders/           # 订单列表 feature
+    │   ├── OrderListPage.tsx   # 订单列表页面组件
+    │   ├── api.ts              # 订单相关 API 调用
+    │   ├── selection.ts        # 订单勾选、跨页选择状态管理
+    │   └── components/         # 订单模块私有组件
+    └── exports/          # 导出任务 feature
+        ├── ExportJobsPage.tsx  # 导出任务列表页面
+        └── useExportEvents.ts  # SSE 事件监听与状态同步 hook
+```
+
+职责边界：
+
+- `app/`：只放应用级壳层（布局、路由入口），不放业务逻辑。
+- `api/`：存放跨 feature 复用的 HTTP 工具和按领域聚合的 API 方法；单个 feature 私有的 API 可下沉到 `features/<feature>/api.ts`。
+- `features/`：按业务领域划分，每个 feature 自治管理页面、API、状态与组件，避免不同模块间随意引用。
+
+## 4. API 统一封装
+
+### 4.1 `requestJson`
 
 所有 JSON REST 接口统一通过 `requestJson` 调用，自动处理请求头、JSON 解析、HTTP 错误和业务错误 Envelope。
 
@@ -51,7 +81,7 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
 }
 ```
 
-### 3.2 配套类型与辅助函数（占位）
+### 4.2 配套类型与辅助函数（占位）
 
 ```typescript
 interface ApiEnvelope<T> {
@@ -68,7 +98,7 @@ interface ApiErrorData {
 }
 ```
 
-### 3.3 使用示例
+### 4.3 使用示例
 
 ```typescript
 // GET 示例
@@ -82,7 +112,7 @@ const job = await requestJson<ExportJobResp>('/api/v1/export-jobs', {
 });
 ```
 
-## 4. 导出任务页 API 清单
+## 5. 导出任务页 API 清单
 
 导出任务页 `/exports` 依赖以下接口完成列表展示、状态校准与失败重试。接口的详细请求/响应格式定义见后端文档 `be-td.md` 的 `4.1.1 导出任务接口概览` 与对应接口章节。
 
@@ -96,7 +126,7 @@ const job = await requestJson<ExportJobResp>('/api/v1/export-jobs', {
 - 详情接口用于 SSE 断线重连、终态校准以及手动刷新单行数据。
 - 重试接口仅对 `FAILED` 状态且未超过最大重试次数的任务可用；成功后任务回到 `PENDING`，列表行应同步更新。
 
-## 5. SSE 事件消费
+## 6. SSE 事件消费
 
 导出任务页通过 `GET /api/v1/export-jobs/events` 建立 SSE 连接。事件格式与字段定义见后端文档 `be-td.md` 的 `GET /api/v1/export-jobs/events` 章节。
 
@@ -106,11 +136,11 @@ const job = await requestJson<ExportJobResp>('/api/v1/export-jobs', {
 - 连接断开、页面重新可见或收到 `job.succeeded` / `job.failed` 等终态事件时，调用 `GET /api/v1/export-jobs/{jobId}` 校准最终结果。
 - `heartbeat` 仅用于维持连接，不需要更新任务状态。
 
-## 6. 文件下载处理
+## 7. 文件下载处理
 
 任务成功后，前端通过 `GET /api/v1/export-jobs/{jobId}/download` 下载 Excel。该接口成功时返回二进制文件，失败时才返回 JSON 错误 Envelope，因此前端不能简单假设「非 200 就是文本错误」。
 
-### 6.1 下载调用示例
+### 7.1 下载调用示例
 
 ```typescript
 // frontend/src/api/exportApi.ts
@@ -136,7 +166,7 @@ async download(job: ExportJobItem) {
 }
 ```
 
-### 6.2 错误处理 `parseBlobError`
+### 7.2 错误处理 `parseBlobError`
 
 由于失败响应体可能是 JSON Envelope，也可能是网关返回的纯文本/HTML，前端需要先读取 Blob，再尝试解析为 JSON：
 
@@ -153,7 +183,7 @@ async function parseBlobError(response: Response): Promise<ApiError> {
 }
 ```
 
-### 6.3 文件名解析
+### 7.3 文件名解析
 
 优先从 `Content-Disposition` 头的 `filename*` 字段解析 UTF-8 文件名；解析失败时回退到 `filename` 字段；都失败时使用任务列表中的 `file_name`。
 
@@ -167,7 +197,7 @@ function filenameFromDisposition(header: string | null): string | null {
 }
 ```
 
-### 6.4 触发下载
+### 7.4 触发下载
 
 拿到 Blob 后，创建临时 `<a>` 链接并模拟点击，下载完成后移除该链接：
 
@@ -184,7 +214,7 @@ function saveBlob(blob: Blob, filename: string) {
 }
 ```
 
-## 7. 后续补充项（占位）
+## 8. 后续补充项（占位）
 
 - SSE 连接与轮询降级策略
 - 任务列表状态管理
