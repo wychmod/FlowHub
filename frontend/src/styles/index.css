@@ -1,0 +1,16 @@
+/* 全局样式重置：消除浏览器默认的 body 外边距，避免 antd Layout 四周围出白边，并让根节点撑满视口高度。 */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  /* antd Layout 内容区与页面背景保持一致，避免露白 */
+  background-color: #f5f5f5;
+}
