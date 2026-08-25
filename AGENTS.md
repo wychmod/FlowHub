@@ -51,6 +51,18 @@ npm run build
 npm run preview
 ```
 
+前端测试命令：
+
+```bash
+# 运行全部单测
+npm test
+
+# 监听模式
+npm run test:watch
+```
+
+**前端改动自动校验 hook**：仓库 `.claude/` 配置了 `PostToolUse` hook（`Write|Edit`），每当改动 `frontend/` 目录下的文件时，会自动执行 `npm test && npm run build`；任一步失败都会以非零退出码标记。因此任何对前端源码的修改都必须通过单测与构建，新增功能时应同步补充对应单测。此 hook 的校验脚本为 `.claude/hooks/check-frontend.js`，可在 `/hooks` 菜单中查看或停用。
+
 ### 验证地址
 
 - 前端页面：http://localhost:5174
