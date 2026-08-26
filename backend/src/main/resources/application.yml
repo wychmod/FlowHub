@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: export-flow-backend
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# 日志级别中附带 trace_id，配合 TraceIdFilter 写入的 MDC 使用
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{trace_id:-}]"
+
+# 后续迭代按 be-td.md 第 12 章补充 MySQL/Redis/RabbitMQ/导出目录等配置。
+# 当前尚未配置数据源，MyBatis 自动配置会因缺少 DataSource 而跳过，订单数据来自 InMemoryOrderMapper。
+# 接入 MySQL 后放开以下配置：
+# spring:
+#   datasource:
+#     url: jdbc:mysql://localhost:3306/export_flow?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+#     username: root
+#     password: your_password
+# mybatis:
+#   map-underscore-to-camel-case: true
+#   mapper-locations: classpath:mapper/**/*.xml
