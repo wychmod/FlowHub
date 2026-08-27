@@ -56,7 +56,7 @@ export-flow/
 │   ├── mvnw / mvnw.cmd        # Maven Wrapper（使用 .mvn/wrapper/maven-wrapper.jar）
 │   └── src/main/java/com/example/exportflow/
 │       ├── common/web/        # 横切 Web 基础设施
-│       │   ├── api/           #   统一响应 Envelope（ApiResponse）
+│       │   ├── api/           #   统一响应 Envelope（ApiResponse/ApiResponseAdvice/RawResponse）
 │       │   ├── error/         #   错误码、业务异常、全局异常处理
 │       │   ├── config/        #   Web 通用配置（CORS、API v1 统一前缀、异步线程池）
 │       │   └── trace/         #   trace_id 生成/透传 + MDC（TraceIdSupport、MdcScope、MdcTaskDecorator）
@@ -89,7 +89,7 @@ export-flow/
 
 ## 已实现的最小案例
 
-- **统一响应 Envelope**：所有 JSON 接口返回 `{code, message, data, trace_id}`，字段风格为 snake_case（对齐 be-td.md 4.2/4.3 示例）。
+- **统一响应 Envelope**：所有 JSON 接口返回 `{code, message, data, trace_id}`，字段风格为 snake_case（对齐 be-td.md 4.2/4.3 示例）；`ApiResponseAdvice` 将控制器返回的裸对象自动包装为 Envelope，标注 `@RawResponse` 或返回 `Resource`/SSE/流式的接口保持原生响应。
 - **API v1 统一前缀**：`ApiWebMvcConfiguration` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径，版本号集中维护。
 - **trace_id 链路**：`TraceIdSupport` + `MdcScope` 为每个请求生成/透传 trace_id，写入 MDC（日志可打印）、响应头 `X-Trace-Id` 与响应体；`MdcTaskDecorator` 使异步线程池（`exportFlowTaskExecutor`）继承请求的 trace_id，贯穿异步链路。
 - **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0` 可复现）。

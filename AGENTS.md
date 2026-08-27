@@ -78,6 +78,7 @@ npm run test:watch
 
 - `common/web/`：被所有业务模块复用的 Web 层基础设施。
   - `api/ApiResponse`：统一响应 Envelope `{code, message, data, trace_id}`，字段使用 `snake_case`；`ApiV1` 为控制器版本命名空间标记注解。
+  - `api/ApiResponseAdvice`：`ResponseBodyAdvice`，对返回裸对象的 `@RestController` 自动包装为统一 Envelope 并回写 `trace_id` 响应头；已包装响应、`Resource`/SSE/流式响应以及标注 `@RawResponse`（`api/RawResponse`）的接口按原样返回，避免二次包装。
   - `error/`：`ErrorCode`（HTTP 状态映射）、`BusinessException`、`GlobalExceptionHandler`，将异常统一转换为错误 Envelope。
   - `trace/`：链路追踪基础设施。`TraceIdFilter` 生成/透传 `trace_id`；`TraceIdSupport` 提供读取/生成/合法性校验工具；`MdcScope` 管理 MDC 作用域（退出时还原）；`MdcTaskDecorator` 让异步线程继承提交线程的 trace 上下文。
   - `config/` 的 `AsyncMdcConfiguration` 定义了统一异步线程池 `exportFlowTaskExecutor`（带 `MdcTaskDecorator`），异步任务应注入该 bean 以保持 trace 链路贯穿。
@@ -105,13 +106,13 @@ npm run test:watch
 
 1. 前端通过 Vite 代理请求 `/api/*`。
 2. `TraceIdFilter` 为每个请求生成或透传 `trace_id`，写入 MDC 与响应头。
-3. 控制器返回 `ApiResponse.success(...)`，异常由 `GlobalExceptionHandler` 统一处理。
+3. 控制器直接返回数据或 `ApiResponse`，`ApiResponseAdvice` 自动包装为统一 Envelope（裸对象/已包装均被正确处理），异常由 `GlobalExceptionHandler` 统一处理。
 4. 前端 `requestJson` 解包 `data`，并在错误中保留 `trace_id`。
 
 ## 已实现 vs. 计划实现
 
 当前已实现：
-- 统一响应 Envelope 与全局异常处理。
+- 统一响应 Envelope 与全局异常处理（含 `ApiResponseAdvice` 自动包装裸对象响应）。
 - API v1 统一路径前缀（`ApiWebMvcConfiguration` 为所有 `@RestController` 追加 `/api/v1`）。
 - `trace_id` 生成与链路透传（含异步线程 MDC 上下文传递）。
 - 订单列表接口（Mock 数据 + 服务端分页）。
