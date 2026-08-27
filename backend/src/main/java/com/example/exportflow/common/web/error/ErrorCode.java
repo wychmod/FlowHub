@@ -1,25 +1,32 @@
 package com.example.exportflow.common.web.error;
 
-/** 业务错误码与 HTTP 状态映射，见 be-td.md 4.11（骨架版仅保留最常用项）。 */
-public enum ErrorCode {
+import org.springframework.http.HttpStatus;
 
-    VALIDATION_ERROR(400, "请求参数不合法"),
-    NOT_FOUND(404, "资源不存在"),
-    INTERNAL_ERROR(500, "服务内部错误");
+/**
+ * 错误码抽象契约。
+ * <p>
+ * 业务模块通过实现该接口声明自己的错误码枚举，统一暴露错误编码、默认文案和 HTTP 状态。
+ */
+public interface ErrorCode {
 
-    private final int httpStatus;
-    private final String defaultMessage;
+    /**
+     * 错误编码。
+     *
+     * @return 稳定的错误码字符串
+     */
+    String code();
 
-    ErrorCode(int httpStatus, String defaultMessage) {
-        this.httpStatus = httpStatus;
-        this.defaultMessage = defaultMessage;
-    }
+    /**
+     * 默认错误文案。
+     *
+     * @return 面向前端或调用方的默认提示
+     */
+    String message();
 
-    public int httpStatus() {
-        return httpStatus;
-    }
-
-    public String defaultMessage() {
-        return defaultMessage;
-    }
+    /**
+     * 该错误对应的 HTTP 状态。
+     *
+     * @return HTTP 状态码
+     */
+    HttpStatus httpStatus();
 }
