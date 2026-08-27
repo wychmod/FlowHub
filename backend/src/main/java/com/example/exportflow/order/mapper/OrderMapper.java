@@ -1,6 +1,7 @@
 package com.example.exportflow.order.mapper;
 
 import com.example.exportflow.order.entity.Order;
+import com.example.exportflow.order.mapper.impl.InMemoryOrderMapperImpl;
 
 import java.util.List;
 
@@ -8,7 +9,7 @@ import java.util.List;
  * 订单数据访问接口。
  *
  * <p>接口隔离了持久化细节，Service 只依赖本接口。当前骨架接入了 MyBatis 依赖但
- * 尚无数据源，故运行期由 {@link InMemoryOrderMapper} 提供内存 Mock 实现保证接口可调用；
+ * 尚无数据源，故运行期由 {@link InMemoryOrderMapperImpl} 提供内存 Mock 实现保证接口可调用；
  * 引入 MySQL 后，将改为带 {@code @Mapper} 注解的 MyBatis 实现（见 be-td.md 5.1）。
  */
 public interface OrderMapper {

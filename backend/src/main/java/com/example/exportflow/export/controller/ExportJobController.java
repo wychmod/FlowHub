@@ -1,6 +1,5 @@
 package com.example.exportflow.export.controller;
 
-import com.example.exportflow.common.web.api.ApiResponse;
 import com.example.exportflow.export.dto.ExportJobPageResp;
 import com.example.exportflow.export.service.ExportJobService;
 import jakarta.validation.constraints.Max;
@@ -30,12 +29,21 @@ public class ExportJobController {
         this.exportJobService = exportJobService;
     }
 
+    /**
+     * 查询导出任务分页数据（当前为空列表占位）。
+     *
+     * <p>直接返回裸对象，统一 Envelope 由 {@code ApiResponseAdvice} 自动包装。
+     *
+     * @param page     当前页码，默认 1
+     * @param pageSize 每页条数，默认 10，范围 1-100
+     * @return 导出任务分页结果
+     */
     @GetMapping
-    public ApiResponse<ExportJobPageResp> listJobs(
+    public ExportJobPageResp listJobs(
             @RequestParam(defaultValue = "1") @Min(value = 1, message = "page 必须大于等于 1") int page,
             @RequestParam(name = "page_size", defaultValue = "10")
             @Min(value = 1, message = "page_size 必须在 1-100 之间")
             @Max(value = 100, message = "page_size 必须在 1-100 之间") int pageSize) {
-        return ApiResponse.success(exportJobService.listJobs(page, pageSize));
+        return exportJobService.listJobs(page, pageSize);
     }
 }

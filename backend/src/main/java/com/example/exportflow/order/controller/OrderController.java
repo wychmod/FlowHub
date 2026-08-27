@@ -1,6 +1,5 @@
 package com.example.exportflow.order.controller;
 
-import com.example.exportflow.common.web.api.ApiResponse;
 import com.example.exportflow.order.dto.OrderPageResp;
 import com.example.exportflow.order.dto.OrderRequest;
 import com.example.exportflow.order.service.OrderService;
@@ -32,11 +31,13 @@ public class OrderController {
     /**
      * 查询订单分页数据。
      *
+     * <p>直接返回裸对象，统一 Envelope 由 {@code ApiResponseAdvice} 自动包装。
+     *
      * @param request 订单查询请求，承载分页参数和默认值
-     * @return 统一响应封装的订单分页结果
+     * @return 订单分页结果
      */
     @GetMapping
-    public ApiResponse<OrderPageResp> listOrders(@Valid @ModelAttribute OrderRequest request) {
-        return ApiResponse.success(orderService.listOrders(request));
+    public OrderPageResp listOrders(@Valid @ModelAttribute OrderRequest request) {
+        return orderService.listOrders(request);
     }
 }

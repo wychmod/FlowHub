@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
-/** 订单分页响应，见 be-td.md 4.3。 */
+/**
+ * 订单分页响应，见 be-td.md 4.3。
+ */
 public record OrderPageResp(
         List<OrderItemVO> items,
         int page,

@@ -1,6 +1,7 @@
-package com.example.exportflow.order.mapper;
+package com.example.exportflow.order.mapper.impl;
 
 import com.example.exportflow.order.entity.Order;
+import com.example.exportflow.order.mapper.OrderMapper;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -16,7 +17,7 @@ import java.util.stream.IntStream;
  * 字段循环取值逻辑刻意与后续 SQL 生成脚本保持一致，便于无感切换为真实实现。
  */
 @Repository
-public class InMemoryOrderMapper implements OrderMapper {
+public class InMemoryOrderMapperImpl implements OrderMapper {
 
     /** Mock 订单总数，先打通链路，后续切换为 11 万条演示数据。 */
     static final int MOCK_TOTAL = 57;
