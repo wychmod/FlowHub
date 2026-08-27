@@ -12,7 +12,7 @@
 
 ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。当前仓库为**初始骨架**，仅打通了最小可运行的前后端链路。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。
 
-- **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Maven（已内置 Wrapper）。
+- **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Flyway + MySQL、Maven（已内置 Wrapper）。
 - **前端**：React 18、TypeScript、Vite 6、antd 6、@tanstack/react-query 5、dayjs。
 - **端口约定**：后端 `8080`，前端 `5174`。
 
@@ -20,7 +20,7 @@ ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。�
 
 ### 一键启动
 
-在 Windows 环境下，双击仓库根目录的 `start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。
+在 Windows 环境下，双击仓库根目录的 `start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。**启动后端前需先启动本机 3306 端口的 MySQL（存在 `exportflow` 库与 `exportflow/exportflow` 账号）**，否则 Flyway/数据源初始化会失败。
 
 ### 后端（`backend/`）
 
@@ -34,6 +34,8 @@ ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。�
 # 运行单个测试类
 .\mvnw.cmd test -Dtest=OrderControllerTest
 ```
+
+后端测试不依赖外部 MySQL：`src/test/resources/application.yml` 将测试数据源指向 **H2 内存库（MySQL 兼容模式，`jdbc:h2:mem:exportflow_test;MODE=MySQL`）**，Flyway 在测试上下文对该 H2 执行迁移。
 
 在 Unix/Linux/macOS 环境下将 `.\mvnw.cmd` 替换为 `./mvnw`。
 
@@ -115,12 +117,14 @@ npm run test:watch
 - 统一响应 Envelope 与全局异常处理（含 `ApiResponseAdvice` 自动包装裸对象响应）。
 - API v1 统一路径前缀（`ApiWebMvcConfiguration` 为所有 `@RestController` 追加 `/api/v1`）。
 - `trace_id` 生成与链路透传（含异步线程 MDC 上下文传递）。
+- MySQL 数据源与 Flyway 迁移接入（`spring.datasource.*` + `spring.flyway.enabled=true`，应用启动时自动执行迁移脚本）。
 - 订单列表接口（Mock 数据 + 服务端分页）。
 - 导出任务列表接口（空列表占位）。
 - 前端订单列表页（react-query + antd Table 分页）。
 
 设计文档中规划但尚未实现：
-- MySQL/MyBatis 持久化、RabbitMQ、Redis、Outbox 事务发件箱模式。
+- MyBatis 真实持久化（订单仍走内存 Mock，迁移脚本待补充；接入后按 write 惯例置于 `db/migration/`）。
+- RabbitMQ、Redis、Outbox 事务发件箱模式。
 - Apache POI SXSSF 流式 Excel 生成。
 - 导出任务创建、重试、下载、SSE 进度推送。
 - 订单勾选导出、筛选导出、幂等创建、文件过期清理。
@@ -130,7 +134,7 @@ npm run test:watch
 
 ## 补充说明
 
-- 已引入 `mybatis-spring-boot-starter`，但骨架尚无数据库，`ExportFlowApplication` 显式排除了 `DataSourceAutoConfiguration`（避免启动时缺 JDBC 驱动失败），订单由 `InMemoryOrderMapper` 提供 Mock；接入 MySQL 后移除该排除项并配置 `spring.datasource` 即可启用真实持久化。
+- 已接入 MySQL 数据源与 Flyway：`application.yml` 配置了 `spring.datasource.url/username/password` 与 `spring.flyway.enabled=true`，启动时 Flyway 自动执行 `src/main/resources/db/migration/` 下的迁移脚本（当前暂无迁移脚本，仅建 `flyway_schema_history` 表）；`ExportFlowApplication` 已移除 `DataSourceAutoConfiguration` 排除项。启动后端前需保证本机 3306 端口 MySQL 存在 `exportflow` 库与 `exportflow/exportflow` 账号。订单仍由 `InMemoryOrderMapper` 提供内存 Mock，替换为真实 MyBatis 持久化时新增迁移脚本即可。
 - 本仓库不存在 Cursor 规则（`.cursor/rules/` 或 `.cursorrules`）或 Copilot 指令（`.github/copilot-instructions.md`）。
 - 后端使用 Maven Wrapper，不要求系统预装 Maven。
 - 后端 `application.yml` 暴露了 Actuator 的 `health` 与 `info` 端点。

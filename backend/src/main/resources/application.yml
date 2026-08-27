@@ -4,6 +4,13 @@ server:
 spring:
   application:
     name: export-flow-backend
+  # MySQL 数据源。Flyway 依赖该 DataSource，在应用启动时自动执行 src/main/resources/db/migration 下的迁移脚本。
+  datasource:
+    url: jdbc:mysql://localhost:3306/exportflow?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC
+    username: exportflow
+    password: exportflow
+  flyway:
+    enabled: true
 
 management:
   endpoints:
@@ -16,14 +23,10 @@ logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{trace_id:-}]"
 
-# 后续迭代按 be-td.md 第 12 章补充 MySQL/Redis/RabbitMQ/导出目录等配置。
-# 当前尚未配置数据源，MyBatis 自动配置会因缺少 DataSource 而跳过，订单数据来自 InMemoryOrderMapper。
-# 接入 MySQL 后放开以下配置：
-# spring:
-#   datasource:
-#     url: jdbc:mysql://localhost:3306/export_flow?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-#     username: root
-#     password: your_password
-# mybatis:
-#   map-underscore-to-camel-case: true
-#   mapper-locations: classpath:mapper/**/*.xml
+# 后续迭代按 be-td.md 第 12 章补充 Redis/RabbitMQ/导出目录等配置。
+# 已接入真实 MySQL 数据源与 Flyway；建表脚本放置在 src/main/resources/db/migration/V x__xxx.sql，
+# 由 Flyway 启动时自动执行（当前尚未提供迁移脚本，仅创建 flyway_schema_history 表）。
+# 订单查询仍由 InMemoryOrderMapper 提供内存 Mock，替换为真实 MyBatis 实现时再新增迁移脚本。
+mybatis:
+  map-underscore-to-camel-case: true
+  mapper-locations: classpath:mapper/**/*.xml

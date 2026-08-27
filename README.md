@@ -8,14 +8,14 @@
 
 | 端 | 技术 |
 | --- | --- |
-| 后端 | Java 21 · Spring Boot 3.3.2 · MyBatis（`mybatis-spring-boot-starter` 3.0.3）· Maven（Wrapper，内置于 `backend/.mvn/wrapper/`） |
+| 后端 | Java 21 · Spring Boot 3.3.2 · MyBatis（`mybatis-spring-boot-starter` 3.0.3）· Flyway + MySQL · Maven（Wrapper，内置于 `backend/.mvn/wrapper/`） |
 | 前端 | React 18.3.1 · TypeScript · Vite 6 · antd 6 · @ant-design/icons 6 · @tanstack/react-query 5 · dayjs |
 
 端口约定：**后端 8080，前端 5174**。
 
 ## 一键启动
 
-前置条件：JDK 21、Node.js ≥ 18（首次运行需联网下载依赖）。
+前置条件：JDK 21、Node.js ≥ 18、MySQL（本机 3306 端口存在 `exportflow` 数据库与 `exportflow/exportflow` 账号，见下方数据源说明；首次运行需联网下载依赖）。
 
 双击项目根目录的 `start.bat`：
 
@@ -85,7 +85,7 @@ export-flow/
             └── exports/       #   导出任务页（占位）
 ```
 
-与 TD 文档的差异（均为后续迭代内容）：后端 `mq/`、`excel/`、`schedule/` 等包在引入 RabbitMQ/POI 时创建；`mapper/`、`entity/` 已就位但当前为内存 Mock，接入 MySQL 后替换为真实 MyBatis 实现；前端 `selection.ts`、`useExportEvents.ts` 等在实现勾选导出与 SSE 时创建。后端已引入 `mybatis-spring-boot-starter`，因尚无数据库在 `ExportFlowApplication` 显式排除了 `DataSourceAutoConfiguration`。
+与 TD 文档的差异（均为后续迭代内容）：后端 `mq/`、`excel/`、`schedule/` 等包在引入 RabbitMQ/POI 时创建；`mapper/`、`entity/` 已就位但当前为内存 Mock，替换为真实 MyBatis 实现时新增迁移脚本即可；前端 `selection.ts`、`useExportEvents.ts` 等在实现勾选导出与 SSE 时创建。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`），订单查询目前仍由 `InMemoryOrderMapper` 提供内存 Mock。
 
 ## 已实现的最小案例
 
