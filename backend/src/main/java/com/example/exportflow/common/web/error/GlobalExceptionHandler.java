@@ -5,8 +5,10 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
@@ -56,6 +58,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return badRequest("参数 " + ex.getName() + " 类型不正确");
+    }
+
+    /**
+     * 请求对象绑定或校验失败，例如 ModelAttribute 绑定失败、字段类型转换失败。
+     *
+     * @param ex 绑定异常
+     * @return 统一错误响应
+     */
+    @ExceptionHandler({BindException.class, MethodArgumentNotValidException.class})
+    public ResponseEntity<ApiResponse<Void>> handleBindException(Exception ex) {
+        return badRequest(CommonErrorCode.VALIDATION_ERROR.message());
     }
 
     /**

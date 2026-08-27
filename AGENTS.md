@@ -125,6 +125,7 @@ npm run test:watch
 - 订单勾选导出、筛选导出、幂等创建、文件过期清理。
 
 新增功能时，应保持后端各业务模块垂直自治（`order/` 或 `export/` 下自包含 `controller/dto/service/mapper/entity/vo`），横切 Web 能力只放在 `common/web/`。
+- 控制器层的复杂查询/提交入参优先封装为 `xxxRequest` DTO，不要在方法签名里堆叠多个 `@RequestParam` 或零散字段；默认值、校验规则和后续扩展字段都收敛在 Request DTO 内。
 
 ## 补充说明
 
