@@ -38,3 +38,12 @@ build/
 ### Mac OS ###
 .DS_Store
 /.idea/
+
+### Node / 前端 ###
+node_modules/
+frontend/dist/
+*.local
+npm-debug.log*
+
+### 导出文件（后端生成的 Excel 落盘目录） ###
+export-files/

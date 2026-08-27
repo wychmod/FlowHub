@@ -12,7 +12,7 @@
 
 ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。当前仓库为**初始骨架**，仅打通了最小可运行的前后端链路。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。
 
-- **后端**：Java 21、Spring Boot 3.3.2、Maven（已内置 Wrapper）。
+- **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Maven（已内置 Wrapper）。
 - **前端**：React 18、TypeScript、Vite 6、antd 6、@tanstack/react-query 5、dayjs。
 - **端口约定**：后端 `8080`，前端 `5174`。
 
@@ -77,10 +77,12 @@ npm run test:watch
 后端代码位于 `backend/src/main/java/com/example/exportflow/`，按**横切 Web 基础设施**与**垂直业务模块**组织：
 
 - `common/web/`：被所有业务模块复用的 Web 层基础设施。
-  - `api/ApiResponse`：统一响应 Envelope `{code, message, data, trace_id}`，字段使用 `snake_case`。
+  - `api/ApiResponse`：统一响应 Envelope `{code, message, data, trace_id}`，字段使用 `snake_case`；`ApiV1` 为控制器版本命名空间标记注解。
   - `error/`：`ErrorCode`（HTTP 状态映射）、`BusinessException`、`GlobalExceptionHandler`，将异常统一转换为错误 Envelope。
-  - `trace/`：`TraceIdFilter` 通过 `X-Trace-Id` 请求头与 MDC 生成/透传 `trace_id`；`TraceIds` 读取当前请求的 `trace_id`。
-- `order/`：订单查询模块。`OrderController` 暴露 `GET /api/v1/orders`；`OrderService` 目前提供固定内存 Mock 数据（`MOCK_TOTAL = 57`）。
+  - `trace/`：链路追踪基础设施。`TraceIdFilter` 生成/透传 `trace_id`；`TraceIdSupport` 提供读取/生成/合法性校验工具；`MdcScope` 管理 MDC 作用域（退出时还原）；`MdcTaskDecorator` 让异步线程继承提交线程的 trace 上下文。
+  - `config/` 的 `AsyncMdcConfiguration` 定义了统一异步线程池 `exportFlowTaskExecutor`（带 `MdcTaskDecorator`），异步任务应注入该 bean 以保持 trace 链路贯穿。
+  - `config/`：`WebConfig`（开发期 CORS）；`ApiWebMvcConfiguration` 用 `PathMatchConfigurer` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径（如 `/orders`），版本号集中维护。
+- `order/`：订单查询模块。`OrderController` 暴露 `GET /api/v1/orders`；`OrderService` 通过 `OrderMapper` 查询，持久化目前由 `InMemoryOrderMapper` 提供固定内存 Mock 数据（`MOCK_TOTAL = 57`）。分层为 `controller/dto/service/mapper/entity/vo`。
 - `export/`：导出任务模块骨架。`ExportJobController` 暴露 `GET /api/v1/export-jobs`；`ExportJobService` 目前仅返回空列表占位。
 
 所有 JSON 接口均返回统一 Envelope。参数校验失败返回 HTTP 400，`code` 为 `"VALIDATION_ERROR"`。控制器采用构造器注入，并对查询参数使用 `@Validated` 校验。
@@ -110,7 +112,8 @@ npm run test:watch
 
 当前已实现：
 - 统一响应 Envelope 与全局异常处理。
-- `trace_id` 生成与链路透传。
+- API v1 统一路径前缀（`ApiWebMvcConfiguration` 为所有 `@RestController` 追加 `/api/v1`）。
+- `trace_id` 生成与链路透传（含异步线程 MDC 上下文传递）。
 - 订单列表接口（Mock 数据 + 服务端分页）。
 - 导出任务列表接口（空列表占位）。
 - 前端订单列表页（react-query + antd Table 分页）。
@@ -125,6 +128,7 @@ npm run test:watch
 
 ## 补充说明
 
+- 已引入 `mybatis-spring-boot-starter`，但骨架尚无数据库，`ExportFlowApplication` 显式排除了 `DataSourceAutoConfiguration`（避免启动时缺 JDBC 驱动失败），订单由 `InMemoryOrderMapper` 提供 Mock；接入 MySQL 后移除该排除项并配置 `spring.datasource` 即可启用真实持久化。
 - 本仓库不存在 Cursor 规则（`.cursor/rules/` 或 `.cursorrules`）或 Copilot 指令（`.github/copilot-instructions.md`）。
 - 后端使用 Maven Wrapper，不要求系统预装 Maven。
 - 后端 `application.yml` 暴露了 Actuator 的 `health` 与 `info` 端点。
