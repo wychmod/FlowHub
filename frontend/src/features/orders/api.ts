@@ -6,12 +6,6 @@ export type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCEL
 /** 销售渠道，be-td.md 4.3：WEB/APP/STORE/PARTNER。 */
 export type SalesChannel = 'WEB' | 'APP' | 'STORE' | 'PARTNER';
 
-/** 允许排序的字段，be-td.md 4.3：created_at / total_amount。 */
-export type OrderSortBy = 'created_at' | 'total_amount';
-
-/** 排序方向，be-td.md 4.3：asc / desc。 */
-export type OrderSortOrder = 'asc' | 'desc';
-
 /** 订单列表行，字段与后端 OrderItemVO（snake_case）一致，见 be-td.md 4.3。 */
 export interface OrderItem {
   id: number;
@@ -34,51 +28,24 @@ export interface OrderPage {
 }
 
 /**
- * 订单查询参数，对齐 be-td.md 4.3 的 Query 参数。
- * 全部为可选；未传的字段不会拼进 query（后端忽略未映射参数，不报错）。
+ * 订单查询参数，对齐当前后端 OrderRequest。
+ * 现阶段后端只实现 page 与 page_size，因此前端也只暴露这两个分页条件。
  */
 export interface OrderQuery {
   /** 页码，从 1 开始，默认 1。 */
   page?: number;
-  /** 每页行数，默认 20（后端限制 1-100）。 */
+  /** 每页行数；页面默认 10，后端允许 1-100。 */
   pageSize?: number;
-  /** 订单号，精确匹配，去空格，最长 32 字符。 */
-  orderNo?: string;
-  /** 订单状态筛选。 */
-  orderStatus?: OrderStatus;
-  /** 销售渠道筛选。 */
-  salesChannel?: SalesChannel;
-  /** 创建时间起点，ISO-8601。 */
-  createdFrom?: string;
-  /** 创建时间终点，ISO-8601，不得早于 createdFrom。 */
-  createdTo?: string;
-  /** 最小金额，>= 0。 */
-  minAmount?: number;
-  /** 最大金额，>= minAmount。 */
-  maxAmount?: number;
-  /** 排序字段。 */
-  sortBy?: OrderSortBy;
-  /** 排序方向。 */
-  sortOrder?: OrderSortOrder;
 }
 
 /**
- * 查询订单列表（be-td.md 4.3）。
- * 将参数映射为后端 query 参数（snake_case），仅拼接非空字段；返回解包后的分页数据。
+ * 查询订单列表。
+ * 将页面分页状态映射为后端 query 参数（page/page_size），返回解包后的分页数据。
  */
 export async function listOrders(params: OrderQuery = {}): Promise<OrderPage> {
   const query = new URLSearchParams();
   if (params.page != null) query.set('page', String(params.page));
   if (params.pageSize != null) query.set('page_size', String(params.pageSize));
-  if (params.orderNo?.trim()) query.set('order_no', params.orderNo.trim());
-  if (params.orderStatus) query.set('order_status', params.orderStatus);
-  if (params.salesChannel) query.set('sales_channel', params.salesChannel);
-  if (params.createdFrom) query.set('created_from', params.createdFrom);
-  if (params.createdTo) query.set('created_to', params.createdTo);
-  if (params.minAmount != null) query.set('min_amount', String(params.minAmount));
-  if (params.maxAmount != null) query.set('max_amount', String(params.maxAmount));
-  if (params.sortBy) query.set('sort_by', params.sortBy);
-  if (params.sortOrder) query.set('sort_order', params.sortOrder);
 
   const qs = query.toString();
   return requestJson<OrderPage>(qs ? `/api/v1/orders?${qs}` : '/api/v1/orders');

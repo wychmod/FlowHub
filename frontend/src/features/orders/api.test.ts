@@ -34,9 +34,9 @@ const samplePage: OrderPage = {
     },
   ],
   page: 1,
-  page_size: 20,
+  page_size: 10,
   total: 57,
-  total_pages: 3,
+  total_pages: 6,
 };
 
 afterEach(() => {
@@ -45,13 +45,13 @@ afterEach(() => {
 });
 
 describe('listOrders', () => {
-  it('默认参数构建 page/page_size 并解包 Envelope 的 data', async () => {
+  it('构建后端支持的 page/page_size 参数并解包 Envelope 的 data', async () => {
     stubFetch(successEnvelope(samplePage));
-    const result = await listOrders({ page: 1, pageSize: 20 });
+    const result = await listOrders({ page: 1, pageSize: 10 });
 
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
-    expect(url).toBe('/api/v1/orders?page=1&page_size=20');
+    expect(url).toBe('/api/v1/orders?page=1&page_size=10');
     // 返回的是解包后的 data，不含 code/message/trace_id 外壳
     expect(result).toEqual(samplePage);
   });
@@ -63,43 +63,11 @@ describe('listOrders', () => {
     expect(url).toBe('/api/v1/orders');
   });
 
-  it('完整的筛选 + 排序参数全部拼进 query（snake_case）', async () => {
+  it('只拼接当前后端 OrderRequest 已实现的分页条件', async () => {
     const mock = stubFetch(successEnvelope(samplePage));
-    await listOrders({
-      page: 2,
-      pageSize: 50,
-      orderNo: 'A001',
-      orderStatus: 'PAID',
-      salesChannel: 'WEB',
-      createdFrom: '2026-08-01T00:00:00Z',
-      createdTo: '2026-08-02T00:00:00Z',
-      minAmount: 10,
-      maxAmount: 100,
-      sortBy: 'total_amount',
-      sortOrder: 'desc',
-    });
+    await listOrders({ page: 2, pageSize: 50 });
     const url = mock.mock.calls[0][0] as string;
-    expect(url).toBe(
-      '/api/v1/orders?page=2&page_size=50&order_no=A001&order_status=PAID' +
-        '&sales_channel=WEB&created_from=2026-08-01T00%3A00%3A00Z' +
-        '&created_to=2026-08-02T00%3A00%3A00Z&min_amount=10' +
-        '&max_amount=100&sort_by=total_amount&sort_order=desc',
-    );
-  });
-
-  it('只传个别可选参数时，未传的字段不出现在 query 中', async () => {
-    const mock = stubFetch(successEnvelope(samplePage));
-    await listOrders({ orderStatus: 'CANCELED' });
-    const url = mock.mock.calls[0][0] as string;
-    // 仅有 order_status，不应出现 sort_by / sales_channel / page 等
-    expect(url).toBe('/api/v1/orders?order_status=CANCELED');
-  });
-
-  it('order_no 去除首尾空白后再拼接', async () => {
-    const mock = stubFetch(successEnvelope(samplePage));
-    await listOrders({ orderNo: '  A001  ' });
-    const url = mock.mock.calls[0][0] as string;
-    expect(url).toBe('/api/v1/orders?order_no=A001');
+    expect(url).toBe('/api/v1/orders?page=2&page_size=50');
   });
 
   it('HTTP 非 2xx 时抛出带 status 与 trace_id 的 ApiError', async () => {

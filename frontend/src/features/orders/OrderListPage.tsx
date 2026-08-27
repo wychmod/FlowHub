@@ -1,10 +1,18 @@
 import { ReloadOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Space, Table, Tag, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
-import { listOrders, type OrderItem } from './api';
+import { ApiError } from '../../api/http';
+import { listOrders, type OrderItem, type OrderPage, type OrderQuery } from './api';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 50] as const;
+
+const DEFAULT_QUERY: Required<OrderQuery> = {
+  page: 1,
+  pageSize: 10,
+};
 
 const STATUS_COLOR: Record<string, string> = {
   PENDING: 'orange',
@@ -37,16 +45,15 @@ const COLUMNS: TableColumnsType<OrderItem> = [
 ];
 
 /**
- * 订单列表页（fe-td.md 3 中 features/orders 的最小实现）：
- * 演示 react-query 数据获取 + antd Table 服务端分页 + dayjs 时间格式化。
+ * 订单列表页。
+ * 页面只维护当前后端已实现的查询条件：页码 page 与每页条数 page_size。
  */
 export function OrderListPage() {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [query, setQuery] = useState<Required<OrderQuery>>(DEFAULT_QUERY);
 
-  const { data, isFetching, refetch } = useQuery({
-    queryKey: ['orders', page, pageSize],
-    queryFn: () => listOrders({ page, pageSize }),
+  const { data, error, isError, isFetching, refetch } = useQuery<OrderPage, ApiError>({
+    queryKey: ['orders', query],
+    queryFn: () => listOrders(query),
   });
 
   return (
@@ -66,23 +73,36 @@ export function OrderListPage() {
           刷新
         </Button>
       </div>
-      <Table<OrderItem>
-        rowKey="id"
-        columns={COLUMNS}
-        dataSource={data?.items ?? []}
-        loading={isFetching}
-        pagination={{
-          current: page,
-          pageSize,
-          total: data?.total ?? 0,
-          showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 条`,
-          onChange: (nextPage, nextPageSize) => {
-            setPage(nextPage);
-            setPageSize(nextPageSize);
-          },
-        }}
-      />
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        {isError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="订单加载失败"
+            description={error.traceId ? `${error.message}（trace_id: ${error.traceId}）` : error.message}
+          />
+        ) : null}
+        <Table<OrderItem>
+          rowKey="id"
+          columns={COLUMNS}
+          dataSource={data?.items ?? []}
+          loading={isFetching}
+          pagination={{
+            current: query.page,
+            pageSize: query.pageSize,
+            pageSizeOptions: PAGE_SIZE_OPTIONS.map(String),
+            total: data?.total ?? 0,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+            onChange: (nextPage, nextPageSize) => {
+              setQuery((prev) => ({
+                page: nextPageSize === prev.pageSize ? nextPage : 1,
+                pageSize: nextPageSize,
+              }));
+            },
+          }}
+        />
+      </Space>
     </div>
   );
 }
