@@ -62,7 +62,7 @@ export-flow/
 │       │   └── trace/         #   trace_id 生成/透传 + MDC（TraceIdSupport、MdcScope、MdcTaskDecorator）
 │       ├── order/             # 订单业务模块（自包含 controller/dto/service/mapper/entity/vo）
 │       │   ├── controller/    #   GET /api/v1/orders（分页 + 参数校验）
-│       │   ├── dto/           #   输入 OrderQuery / 响应 OrderPageResp
+│       │   ├── dto/           #   输入 OrderRequest / 响应 OrderPageResp
 │       │   ├── service/       #   查询逻辑 + 实体转 VO
 │       │   ├── mapper/        #   OrderMapper 接口 + InMemoryOrderMapper（内存 Mock）
 │       │   ├── entity/        #   Order 实体
