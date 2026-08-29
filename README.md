@@ -17,7 +17,7 @@
 
 前置条件：JDK 21、Node.js ≥ 18、MySQL（本机 3306 端口存在 `exportflow` 数据库与 `exportflow/exportflow` 账号，见下方数据源说明；首次运行需联网下载依赖）。
 
-双击项目根目录的 `start.bat`：
+双击 `backend/scripts/start.bat`：
 
 - 首次运行会自动执行 `npm install`；
 - 随后打开两个窗口分别运行后端（8080）与前端（5174）；
@@ -46,14 +46,26 @@ npm run dev
 
 后端测试：`cd backend && .\mvnw.cmd test`；前端构建检查：`cd frontend && npm run build`。
 
+### 演示数据（可选）
+
+`orders` 表当前由内存 Mock 提供数据，数据库本身为空。如需向 MySQL 装入演示订单数据（例如后续验证真实持久化、Excel 导出规模），可执行数据生成脚本：
+
+```bash
+cd backend/scripts
+./seed-demo-data.sh                  # Git Bash / Linux / macOS；默认生成 200,000 行
+SEED_ROWS=50000 ./seed-demo-data.sh  # 自定义行数（1 ~ 1,000,000）
+```
+
+脚本特性：仅当 `orders` 表为空时才写入（已有数据则自动跳过，绝不覆盖）；数据为确定性生成（同参数重跑结果一致），订单状态/销售渠道/币种按业务权重分布，包含个人与企业客户、11 位手机号、16 个省市、多币种金额与近一年的下单时间。数据生成 SQL 位于 `backend/scripts/sql/seed-demo-data.sql`（需 MySQL 8.0+，脚本会自动探测常见安装路径下的 mysql 客户端；连接参数可用 `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` 环境变量覆盖）。
+
 ## 目录结构
 
 ```text
 export-flow/
-├── start.bat                  # 一键启动脚本
 ├── docs/                      # PRD 与前后端技术设计文档
 ├── backend/                   # Spring Boot 后端
 │   ├── mvnw / mvnw.cmd        # Maven Wrapper（使用 .mvn/wrapper/maven-wrapper.jar）
+│   ├── scripts/               # 脚本（start.bat 一键启动、seed-demo-data.sh 演示数据生成）
 │   └── src/main/java/com/example/exportflow/
 │       ├── common/web/        # 横切 Web 基础设施
 │       │   ├── api/           #   统一响应 Envelope（ApiResponse/ApiResponseAdvice/RawResponse）

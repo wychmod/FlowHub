@@ -20,7 +20,7 @@ ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。�
 
 ### 一键启动
 
-在 Windows 环境下，双击仓库根目录的 `start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。**启动后端前需先启动本机 3306 端口的 MySQL（存在 `exportflow` 库与 `exportflow/exportflow` 账号）**，否则 Flyway/数据源初始化会失败。
+在 Windows 环境下，双击 `backend/scripts/start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。**启动后端前需先启动本机 3306 端口的 MySQL（存在 `exportflow` 库与 `exportflow/exportflow` 账号）**，否则 Flyway/数据源初始化会失败。
 
 ### 后端（`backend/`）
 
@@ -38,6 +38,16 @@ ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。�
 后端测试不依赖外部 MySQL：`src/test/resources/application.yml` 将测试数据源指向 **H2 内存库（MySQL 兼容模式，`jdbc:h2:mem:exportflow_test;MODE=MySQL`）**，Flyway 在测试上下文对该 H2 执行迁移。
 
 在 Unix/Linux/macOS 环境下将 `.\mvnw.cmd` 替换为 `./mvnw`。
+
+**演示数据生成脚本**（`backend/scripts/seed-demo-data.sh`，Git Bash/Linux/macOS 下执行）：
+
+```bash
+cd backend/scripts
+./seed-demo-data.sh                  # orders 表为空时装入 200,000 行确定性演示订单
+SEED_ROWS=50000 ./seed-demo-data.sh  # 自定义行数（1 ~ 1,000,000）
+```
+
+脚本仅当 `orders` 表为空时写入（有数据则跳过，绝不覆盖）；数据生成 SQL 位于 `backend/scripts/sql/seed-demo-data.sql`（递归 CTE 实现，需 MySQL 8.0+），状态/渠道/币种按业务权重分布，客户名、手机号、省份、金额、下单时间均为确定性散列生成。连接参数可用 `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` 环境变量覆盖，默认与 `application.yml` 一致；mysql 客户端不在 PATH 时会自动探测 Windows 常见安装路径。
 
 ### 前端（`frontend/`）
 
@@ -134,7 +144,7 @@ npm run test:watch
 
 ## 补充说明
 
-- 已接入 MySQL 数据源与 Flyway：`application.yml` 配置了 `spring.datasource.url/username/password` 与 `spring.flyway.enabled=true`，启动时 Flyway 自动执行 `src/main/resources/db/migration/` 下的迁移脚本（当前暂无迁移脚本，仅建 `flyway_schema_history` 表）；`ExportFlowApplication` 已移除 `DataSourceAutoConfiguration` 排除项。启动后端前需保证本机 3306 端口 MySQL 存在 `exportflow` 库与 `exportflow/exportflow` 账号。订单仍由 `InMemoryOrderMapper` 提供内存 Mock，替换为真实 MyBatis 持久化时新增迁移脚本即可。
+- 已接入 MySQL 数据源与 Flyway：`application.yml` 配置了 `spring.datasource.url/username/password` 与 `spring.flyway.enabled=true`，启动时 Flyway 自动执行 `src/main/resources/db/migration/` 下的迁移脚本（当前已迁移至 V7，含 orders 全部导出业务列与 export_jobs/outbox_events 完整表结构）；`ExportFlowApplication` 已移除 `DataSourceAutoConfiguration` 排除项。启动后端前需保证本机 3306 端口 MySQL 存在 `exportflow` 库与 `exportflow/exportflow` 账号。订单仍由 `InMemoryOrderMapper` 提供内存 Mock，替换为真实 MyBatis 持久化时新增迁移脚本即可；如需给真实库补充演示数据，使用上文「演示数据生成脚本」。
 - 本仓库不存在 Cursor 规则（`.cursor/rules/` 或 `.cursorrules`）或 Copilot 指令（`.github/copilot-instructions.md`）。
 - 后端使用 Maven Wrapper，不要求系统预装 Maven。
 - 后端 `application.yml` 暴露了 Actuator 的 `health` 与 `info` 端点。

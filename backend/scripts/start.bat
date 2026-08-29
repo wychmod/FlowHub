@@ -6,7 +6,10 @@ rem 部分环境（如 Git Bash 派生的进程）会携带 NoDefaultCurrentDire
 rem 禁止 cmd 从当前目录查找可执行文件，导致子窗口里 mvnw.cmd 报"不是内部或外部命令"。
 rem 这里显式清除，保证本脚本及其子窗口始终可用。
 set "NoDefaultCurrentDirectoryInExePath="
-cd /d "%~dp0"
+rem 本脚本位于 backend/scripts/ 下，仓库根目录为其上两级；统一换算为绝对路径，
+rem 保证无论从哪里双击/调用本脚本，工作目录与子窗口路径都指向正确位置。
+for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
+cd /d "%ROOT%"
 
 echo ================================================================
 echo   ExportFlow 一键启动
@@ -26,11 +29,11 @@ if not exist "frontend\node_modules" (
 echo.
 
 echo [2/3] 启动后端（Spring Boot，端口 8080）...
-start "ExportFlow Backend 8080" /D "%~dp0backend" cmd /k .\mvnw.cmd spring-boot:run
+start "ExportFlow Backend 8080" /D "%ROOT%\backend" cmd /k .\mvnw.cmd spring-boot:run
 echo.
 
 echo [3/3] 启动前端（Vite，端口 5174）...
-start "ExportFlow Frontend 5174" /D "%~dp0frontend" cmd /k npm run dev
+start "ExportFlow Frontend 5174" /D "%ROOT%\frontend" cmd /k npm run dev
 echo.
 
 echo 启动指令已发出：
