@@ -41,14 +41,15 @@ npm run dev
 | --- | --- |
 | 前端页面 | http://localhost:5174 |
 | 健康检查 | http://localhost:8080/actuator/health |
-| 订单接口 | http://localhost:8080/api/v1/orders?page=1&page_size=20 |
+| 订单接口（分页） | http://localhost:8080/api/v1/orders?page=1&page_size=20 |
+| 订单接口（筛选 + 排序） | http://localhost:8080/api/v1/orders?order_status=PAID,SHIPPED&total_amount_min=100&sort=total_amount,desc |
 | 任务接口（空占位） | http://localhost:8080/api/v1/export-jobs |
 
 后端测试：`cd backend && .\mvnw.cmd test`；前端构建检查：`cd frontend && npm run build`。
 
 ### 演示数据（可选）
 
-`orders` 表当前由内存 Mock 提供数据，数据库本身为空。如需向 MySQL 装入演示订单数据（例如后续验证真实持久化、Excel 导出规模），可执行数据生成脚本：
+订单查询已走真实 MyBatis + MySQL（`orders` 表为空时接口返回空列表），需向 MySQL 装入演示订单数据（前端列表展示、后续验证 Excel 导出规模）可执行数据生成脚本：
 
 ```bash
 cd backend/scripts
@@ -72,12 +73,13 @@ export-flow/
 │       │   ├── error/         #   错误码、业务异常、全局异常处理
 │       │   ├── config/        #   Web 通用配置（CORS、API v1 统一前缀、异步线程池）
 │       │   └── trace/         #   trace_id 生成/透传 + MDC（TraceIdSupport、MdcScope、MdcTaskDecorator）
-│       ├── order/             # 订单业务模块（自包含 controller/dto/service/mapper/entity/vo）
-│       │   ├── controller/    #   GET /api/v1/orders（分页 + 参数校验）
-│       │   ├── dto/           #   输入 OrderRequest / 响应 OrderPageResp
-│       │   ├── service/       #   查询逻辑 + 实体转 VO
-│       │   ├── mapper/        #   OrderMapper 接口 + InMemoryOrderMapper（内存 Mock）
-│       │   ├── entity/        #   Order 实体
+│       ├── order/             # 订单业务模块（自包含 controller/dto/service/mapper/entity/vo/query）
+│       │   ├── controller/    #   GET /api/v1/orders（分页 + 条件筛选 + 排序 + 参数校验）
+│       │   ├── dto/           #   输入 OrderRequest（record + @BindParam）/ 响应 OrderPageResp（含 sort 回显）
+│       │   ├── service/       #   入参归一化 + 语义校验 + 实体转 VO
+│       │   ├── query/         #   OrderQuery/OrderCriteria 值对象 + SortField 白名单与操作符枚举
+│       │   ├── mapper/        #   OrderMapper（@Mapper，SQL 见 resources/mapper/OrderMapper.xml）+ InMemoryOrderMapperImpl（行为基准，非运行时）
+│       │   ├── entity/        #   Order 实体（record）
 │       │   └── vo/            #   列表行视图对象
 │       └── export/            # 导出任务业务模块
 │           ├── controller/    #   GET /api/v1/export-jobs（空列表占位）
@@ -97,15 +99,16 @@ export-flow/
             └── exports/       #   导出任务页（占位）
 ```
 
-与 TD 文档的差异（均为后续迭代内容）：后端 `mq/`、`excel/`、`schedule/` 等包在引入 RabbitMQ/POI 时创建；`mapper/`、`entity/` 已就位但当前为内存 Mock，替换为真实 MyBatis 实现时新增迁移脚本即可；前端 `selection.ts`、`useExportEvents.ts` 等在实现勾选导出与 SSE 时创建。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`），订单查询目前仍由 `InMemoryOrderMapper` 提供内存 Mock。
+与 TD 文档的差异（均为后续迭代内容）：后端 `mq/`、`excel/`、`schedule/` 等包在引入 RabbitMQ/POI 时创建；订单查询已接入真实 MyBatis（动态 SQL + record 构造器自动映射 + V8 索引），`InMemoryOrderMapperImpl` 仅保留为行为基准供对齐测试；前端 `selection.ts`、`useExportEvents.ts` 等在实现勾选导出与 SSE 时创建。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`）。
 
 ## 已实现的最小案例
 
 - **统一响应 Envelope**：所有 JSON 接口返回 `{code, message, data, trace_id}`，字段风格为 snake_case（对齐 be-td.md 4.2/4.3 示例）；`ApiResponseAdvice` 将控制器返回的裸对象自动包装为 Envelope，标注 `@RawResponse` 或返回 `Resource`/SSE/流式的接口保持原生响应。
 - **API v1 统一前缀**：`ApiWebMvcConfiguration` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径，版本号集中维护。
 - **trace_id 链路**：`TraceIdSupport` + `MdcScope` 为每个请求生成/透传 trace_id，写入 MDC（日志可打印）、响应头 `X-Trace-Id` 与响应体；`MdcTaskDecorator` 使异步线程池（`exportFlowTaskExecutor`）继承请求的 trace_id，贯穿异步链路。
-- **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0` 可复现）。
-- **前端数据流**：`requestJson` 统一解析 Envelope → react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化。
+- **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0`、非法枚举值、区间颠倒等可复现）。
+- **订单条件查询**：状态/渠道/币种多值筛选、姓名模糊、订单号前缀、手机号精确、金额与时间区间、排序白名单（`sort=total_amount,desc`），全契约见 [docs/order-query-design.md](docs/order-query-design.md)；入参 record + `@BindParam` 构造器绑定，各层显式空值防御。
+- **前端数据流**：`requestJson` 统一解析 Envelope → react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
 
 ## 前端访问后端的方式
 
@@ -129,7 +132,7 @@ VITE_API_BASE_URL=http://localhost:8080
 
 按 TD 文档分模块推进，每个迭代保持「后端接口 + 前端页面」可联调：
 
-1. 订单查询完整版：筛选/排序参数、MySQL + MyBatis（be-td.md 4.3、5.1）。
+1. 导出任务对订单查询契约的复用：创建导出任务时以 `OrderCriteria` 做 request snapshot（筛选导出），「勾选导出」经 `ids` 字段精确取数（[docs/order-query-design.md](docs/order-query-design.md) 第八节第 9 步；查询契约、排序与 MyBatis 持久化已实现）。
 2. 导出任务闭环：创建/详情/重试/下载接口、状态机、Outbox + RabbitMQ（be-td.md 4.5-4.10、6）。
 3. 进度推送：SSE `job.progress` 事件 + 前端 `useExportEvents`（be-td.md 10、fe-td.md 6）。
 4. 前端功能页：订单筛选、导出配置弹窗、任务中心轮询降级（fe-td.md 5-8）。
