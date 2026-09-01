@@ -3,29 +3,32 @@ package com.example.exportflow.order.query;
 import com.example.exportflow.common.web.param.ParamUtils;
 
 /**
- * 排序字段白名单枚举（见 docs/order-query-design.md 第三节）。
+ * 排序字段白名单枚举。
  * <p>
- * {@code ORDER BY} 无法参数化，列名只能来自本枚举的映射；任何不在白名单里的排序值
- * 一律 400，绝不字符串拼接进 SQL（防注入是硬约束）。
+ * 列名只能来自本枚举映射，防止 SQL 注入。
  */
 public enum SortField {
 
-    /** 下单时间，业务主排序键，索引友好。 */
+    /** 下单时间，默认降序。 */
     CREATED_AT("created_at", SortDirection.DESC),
 
-    /** 订单总金额。 */
+    /** 订单总金额，默认降序。 */
     TOTAL_AMOUNT("total_amount", SortDirection.DESC),
 
-    /** 订单号，字典序唯一键，可作稳定排序。 */
+    /** 订单号，默认升序。 */
     ORDER_NO("order_no", SortDirection.ASC),
 
-    /** 内部兜底键 / tie-breaker。 */
+    /** 主键，排序 tie-breaker。 */
     ID("id", SortDirection.ASC);
 
-    /** 数据库列名（仅限白名单映射，禁止由用户输入拼接）。 */
-    private final String column;
+    /**
+     * sort_by 合法取值正则，供 OrderRequest 的 {@code @Pattern} 引用。
+     * <p>
+     * 新增/修改排序字段时须同步更新。
+     */
+    public static final String NAMES_PATTERN = "\\s*(?i:created_at|total_amount|order_no|id)?\\s*";
 
-    /** 未显式传方向时该字段的默认方向。 */
+    private final String column;
     private final SortDirection defaultDirection;
 
     SortField(String column, SortDirection defaultDirection) {
@@ -33,30 +36,17 @@ public enum SortField {
         this.defaultDirection = defaultDirection;
     }
 
-    /**
-     * 数据库列名。
-     *
-     * @return orders 表列名
-     */
+    /** 数据库列名。 */
     public String column() {
         return column;
     }
 
-    /**
-     * 该字段的默认排序方向（sort 只传字段名时使用）。
-     *
-     * @return 默认方向
-     */
+    /** 默认排序方向。 */
     public SortDirection defaultDirection() {
         return defaultDirection;
     }
 
-    /**
-     * 大小写不敏感解析排序字段（通用解析委托 {@link ParamUtils#enumFromName}）。
-     *
-     * @param name 字段名字符串
-     * @return 对应枚举；未命中白名单返回 null，由调用方决定抛 400
-     */
+    /** 大小写不敏感解析，未命中返回 null。 */
     public static SortField fromName(String name) {
         return ParamUtils.enumFromName(name, SortField.class);
     }

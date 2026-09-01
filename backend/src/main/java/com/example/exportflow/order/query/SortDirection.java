@@ -3,10 +3,9 @@ package com.example.exportflow.order.query;
 import com.example.exportflow.common.web.param.ParamUtils;
 
 /**
- * 排序方向枚举。
+ * 排序方向枚举，与 {@link SortField} 配合使用。
  * <p>
- * 与 {@link SortField} 配合构成排序契约：所有实现的 {@code ORDER BY} 末尾固定追加
- * {@code id} 作 tie-breaker，方向与主排序一致（见设计文档第三节第 3 点）。
+ * 所有 ORDER BY 末尾须追加 id 作 tie-breaker，方向与主排序一致。
  */
 public enum SortDirection {
 
@@ -17,11 +16,13 @@ public enum SortDirection {
     DESC;
 
     /**
-     * 大小写不敏感解析排序方向（通用解析委托 {@link ParamUtils#enumFromName}）。
-     *
-     * @param name 方向字符串（asc / desc）
-     * @return 对应枚举；未识别返回 null，由调用方决定抛 400
+     * sort_order 合法取值正则，供 OrderRequest 的 {@code @Pattern} 引用。
+     * <p>
+     * 新增/修改方向时须同步更新。
      */
+    public static final String NAMES_PATTERN = "\\s*(?i:asc|desc)?\\s*";
+
+    /** 大小写不敏感解析，未识别返回 null。 */
     public static SortDirection fromName(String name) {
         return ParamUtils.enumFromName(name, SortDirection.class);
     }

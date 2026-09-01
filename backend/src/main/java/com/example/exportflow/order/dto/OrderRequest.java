@@ -9,33 +9,9 @@ import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.BindParam;
 
 /**
- * 订单查询请求（record + 构造器绑定，见 docs/order-query-design.md 第二节、第四节第 2 点）。
+ * 订单查询请求（record + @BindParam 构造器绑定）。
  * <p>
- * 分页 + 筛选 + 排序三组字段共置一个 DTO；snake_case 请求参数经
- * {@link BindParam} 绑定到 record 组件（Spring Framework 6.1+ 构造器绑定），
- * 不再使用别名 getter/setter。Bean Validation 注解直接标注在组件上。
- * <p>
- * 空值契约（设计文档第七节）：筛选字段一律 {@code String} 原样接收，
- * {@code null} 是唯一合法的「未传」表达（空白串由 Service 归一化为 null），
- * 数值/时间/枚举的解析统一收敛在 Service 归一化阶段，禁止空串/0 哨兵值。
- *
- * @param page           页码，从 1 开始；缺省由紧凑构造器兜底为 1
- * @param pageSize       每页条数，1-100；缺省兜底为 20
- * @param orderStatus    订单状态多值筛选，逗号分隔（如 PAID,SHIPPED）
- * @param salesChannel   销售渠道多值筛选，逗号分隔
- * @param currency       币种多值筛选，逗号分隔
- * @param customerName   客户姓名模糊匹配
- * @param orderNo        订单号前缀匹配
- * @param customerPhone  客户手机号精确等值（11 位数字）
- * @param totalAmountMin 金额区间下界（含）
- * @param totalAmountMax 金额区间上界（含）
- * @param createdAtBegin 下单时间下界（含），本地时间 yyyy-MM-dd'T'HH:mm:ss[.SSS]
- * @param createdAtEnd   下单时间上界（不含，左闭右开）
- * @param sortBy         排序字段（白名单见 SortField）；缺省取 created_at；
- *                       DTO 层经 @Pattern 引用 SortField.NAMES_PATTERN 前置拦截非白名单取值
- * @param sortOrder      排序方向 asc/desc；缺省用 sortBy 字段的默认方向；
- *                       不允许脱离 sort_by 单独传（Service 层 400）；
- *                       DTO 层经 @Pattern 引用 SortDirection.NAMES_PATTERN 前置拦截非法方向
+ * 筛选字段为 String 原样接收，null 表示未传；归一化与语义校验由 OrderService 完成。
  */
 public record OrderRequest(
 
@@ -105,12 +81,7 @@ public record OrderRequest(
                 message = "sort_order 仅支持 asc/desc")
         String sortOrder) {
 
-    /**
-     * 紧凑构造器：为未传的分页参数兜底默认值。
-     * <p>
-     * 分页字段用包装类型，缺失参数在构造器绑定时注入 {@code null} 而非 {@code 0}，
-     * 「未传」与「传了 0」在进入校验前即可区分（0 会被 @Min 拒绝，null 走默认值）。
-     */
+    /** 紧凑构造器：分页参数默认值兜底（page=1, pageSize=20）。 */
     public OrderRequest {
         if (page == null) {
             page = 1;
