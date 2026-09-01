@@ -6,11 +6,8 @@ import org.springframework.core.task.TaskDecorator;
 import java.util.Map;
 
 /**
- * 异步任务 MDC 上下文装饰器，解决 ThreadLocal 无法跨线程传递的问题。
- *
- * <p>MDC 底层是 ThreadLocal，新线程默认拿不到提交线程的 trace_id。本装饰器在提交时快照
- * 提交线程的 MDC map，执行线程开始时写入、结束后再还原执行线程原本的上下文，从而让
- * 异步任务（线程池 / @Async / 消息并发消费）继承调用方同一条 trace 链路。
+ * 异步任务 MDC 装饰器：让异步线程继承提交线程的 trace 上下文，
+ * 执行完毕后还原执行线程原有的 MDC。
  */
 public final class MdcTaskDecorator implements TaskDecorator {
 
@@ -27,7 +24,6 @@ public final class MdcTaskDecorator implements TaskDecorator {
                 }
                 runnable.run();
             } finally {
-                // 还原执行线程在本次任务前的上下文，避免污染复用线程。
                 if (executorContext == null) {
                     MDC.clear();
                 } else {
