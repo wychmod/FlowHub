@@ -10,5 +10,7 @@ public record ExportJobPageResp(
         List<ExportJobItemVO> items,
         long total,
         int page,
-        @JsonProperty("page_size") int pageSize) {
+
+        @JsonProperty("page_size")
+        int pageSize) {
 }
