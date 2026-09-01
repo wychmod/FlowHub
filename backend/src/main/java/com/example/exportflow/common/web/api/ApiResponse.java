@@ -15,7 +15,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * }
  * }</pre>
  */
-public record ApiResponse<T>(String code, String message, T data, @JsonProperty("trace_id") String traceId) {
+public record ApiResponse<T>(
+        String code,
+        String message,
+        T data,
+
+        @JsonProperty("trace_id")
+        String traceId) {
 
     public static <T> ApiResponse<T> success(T data) {
         return new ApiResponse<>("SUCCESS", null, data, TraceIdSupport.currentTraceId());
