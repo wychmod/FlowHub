@@ -45,5 +45,24 @@ frontend/dist/
 *.local
 npm-debug.log*
 
+### 运行时崩溃/诊断产物（JVM crash、堆转储、核心转储等） ###
+hs_err_pid*.log
+replay_pid*.log
+*.hprof
+*.pid
+core
+core.*
+javacore.*
+heapdump.*
+Snap.*
+
+### 日志文件 ###
+*.log
+logs/
+
 ### 导出文件（后端生成的 Excel 落盘目录） ###
 export-files/
+
+### Windows 系统文件 ###
+Thumbs.db
+Desktop.ini
