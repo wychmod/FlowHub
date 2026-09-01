@@ -6,11 +6,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
- * 带 MDC 上下文传递的异步执行器配置。
- *
- * <p>在这里集中定义项目统一使用的线程池，并通过 {@link MdcTaskDecorator} 让异步任务继承
- * 提交线程的 trace_id。业务侧如需异步处理（@Async / 手动提交），应注入本 bean
- * {@code exportFlowTaskExecutor} 以保持 trace 链路贯穿，而非自建裸线程池。
+ * 项目统一异步线程池配置，带 MDC 上下文传递。
+ * <p>
+ * 业务侧异步任务应注入 {@code exportFlowTaskExecutor} 以保持 trace 链路。
  */
 @Configuration
 public class AsyncMdcConfiguration {
