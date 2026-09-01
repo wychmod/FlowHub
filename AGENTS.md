@@ -5,7 +5,7 @@
 ## 交互约束
 
 - **必须使用中文回答所有问题**，包括解释、状态说明、错误排查和实现建议。
-- **生成的代码必须包含必要的注释**：对公开类/接口、非平凡方法、复杂逻辑、状态机和边界处理添加中文或中英双语注释，说明其职责、参数、返回值和关键设计决策。
+- **生成的代码必须包含必要的注释，且注释务必精简**：对公开类/接口、非平凡方法、复杂逻辑、状态机和边界处理添加中文注释；类注释 1-3 行说明职责即可，方法注释 1 行说明功能，入参仅做简单描述；禁止长篇解释设计背景、复述签名自明信息（如 `@param raw 原始字符串`）或重复设计文档内容。
 - **重大改动须同步文档**：当本次改动属于重大变更（如新增/变更接口、调整架构设计、新增依赖、改变运行方式、调整目录结构或端口等，会影响 README 或本文件描述的准确性）时，必须同步更新并提交 `README.md` 与本文件 `AGENTS.md`，保持文档与代码一致。
 
 ## 项目概述
@@ -92,21 +92,25 @@ npm run test:watch
   - `api/ApiResponse`：统一响应 Envelope `{code, message, data, trace_id}`，字段使用 `snake_case`；`ApiV1` 为控制器版本命名空间标记注解。
   - `api/ApiResponseAdvice`：`ResponseBodyAdvice`，对返回裸对象的 `@RestController` 自动包装为统一 Envelope 并回写 `trace_id` 响应头；已包装响应、`Resource`/SSE/流式响应以及标注 `@RawResponse`（`api/RawResponse`）的接口按原样返回，避免二次包装。
   - `error/`：`ErrorCode`（HTTP 状态映射）、`BusinessException`、`GlobalExceptionHandler`，将异常统一转换为错误 Envelope。
+  - `param/ParamUtils`：HTTP 入参归一化公共工具（空值契约的代码化）：`trimToNull`（null/空串/纯空白统一折叠为 null）、`splitMultiValue`（逗号多值拆分 + trim + 过滤空 token + 去重，空结果视为未传）、`enumFromName`（枚举常量名大小写不敏感解析，未识别返回 null 由调用方决定报错）。各白名单枚举的 `fromName`（如 `SortField`/`SortDirection`）均委托该工具；业务语义层（白名单校验、区间比较、错误文案）不属于此类。
   - `trace/`：链路追踪基础设施。`TraceIdFilter` 生成/透传 `trace_id`；`TraceIdSupport` 提供读取/生成/合法性校验工具；`MdcScope` 管理 MDC 作用域（退出时还原）；`MdcTaskDecorator` 让异步线程继承提交线程的 trace 上下文。
   - `config/` 的 `AsyncMdcConfiguration` 定义了统一异步线程池 `exportFlowTaskExecutor`（带 `MdcTaskDecorator`），异步任务应注入该 bean 以保持 trace 链路贯穿。
   - `config/`：`WebConfig`（开发期 CORS）；`ApiWebMvcConfiguration` 用 `PathMatchConfigurer` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径（如 `/orders`），版本号集中维护。
-- `order/`：订单查询模块。`OrderController` 暴露 `GET /api/v1/orders`（分页 + 条件筛选 + 排序，契约见 `docs/order-query-design.md`）；`OrderRequest` 为 record（snake_case 参数经 `@BindParam` 构造器绑定），`OrderService` 负责入参归一化与语义级校验后组装 `OrderQuery`（`query/` 包：`OrderQuery`/`OrderCriteria` 值对象 + `SortField` 排序白名单 + `FilterOperator` 操作符枚举）；持久化为 MyBatis 实现（`@Mapper` 接口 + `resources/mapper/OrderMapper.xml` 动态 SQL，列别名驼峰 + record 构造器自动映射）；`InMemoryOrderMapperImpl` 已退役为**行为基准**（非运行时 bean），仅用于单测与「内存 vs MyBatis」行为对齐测试（`OrderMapperAlignmentTest`）。分层为 `controller/dto/service/mapper/entity/vo/query`。
+- `order/`：订单查询模块。`OrderController` 暴露 `GET /api/v1/orders`（分页 + 条件筛选 + 排序，契约见 `docs/order-query-design.md`；排序为 `sort_by` + `sort_order` 两个独立参数，`sort_order` 缺省用字段默认方向兜底、脱离 `sort_by` 单独出现返回 400，响应以 `sort_by`/`sort_order` 回显实际生效排序）；`OrderRequest` 为 record（snake_case 参数经 `@BindParam` 构造器绑定），`OrderService` 负责入参归一化与语义级校验后组装 `OrderQuery`（`query/` 包：`OrderQuery`/`OrderCriteria` 值对象 + `SortField` 排序白名单 + `FilterOperator` 操作符枚举）；持久化为 MyBatis 实现（`@Mapper` 接口 + `resources/mapper/OrderMapper.xml` 动态 SQL，列别名驼峰 + record 构造器自动映射）；`InMemoryOrderMapperImpl` 已退役为**行为基准**（非运行时 bean），仅用于单测与「内存 vs MyBatis」行为对齐测试（`OrderMapperAlignmentTest`）。分层为 `controller/dto/service/mapper/entity/vo/query`。
 - `export/`：导出任务模块骨架。`ExportJobController` 暴露 `GET /api/v1/export-jobs`；`ExportJobService` 目前仅返回空列表占位。
 
 所有 JSON 接口均返回统一 Envelope。参数校验失败返回 HTTP 400，`code` 为 `"VALIDATION_ERROR"`。控制器采用构造器注入，并对查询参数使用 `@Validated` 校验。
 
 ### 后端编码规范（record + @BindParam + 空值防御）
 
-以下三条为**全仓库强制编码约束**，适用于所有新增/修改的后端代码；详细设计与示例见 `docs/order-query-design.md`（第四节、第七节）：
+以下六条为**全仓库强制编码约束**，适用于所有新增/修改的后端代码；详细设计与示例见 `docs/order-query-design.md`（第四节、第七节）：
 
 1. **数据承载类型一律使用 record**：实体（entity）、请求/响应 DTO、VO、跨层值对象（如 `OrderQuery`）全部用 record 实现，享受不可变性与语义明确的访问器。**例外条款**：仅当 record 在具体场景存在框架级问题且无绕行方案时才降级为普通类（如 Web 绑定/校验注解实测不生效），降级须在代码注释与 `docs/order-query-design.md` 中记录原因；不涉及 Web 绑定的类型（实体、值对象、VO）**无例外**。
 2. **HTTP 入参的 snake_case → 驼峰映射统一使用 `@BindParam`**（`org.springframework.web.bind.annotation.BindParam`，Spring Framework 6.1+ 构造器绑定，本项目 Boot 3.3.2 满足）：Request DTO 写成 record，snake_case 参数在组件上标注 `@BindParam("xxx_yyy")`，Bean Validation 注解直接标注在 record 组件上；**禁止**为兼容下划线参数名编写别名 getter/setter（历史 `OrderRequest.getPage_size()` 别名已随 record 化删除，作为反例警示）。可缺省的入参字段用包装类型（`Integer`/`String` 等），默认值在紧凑构造器中兜底，区分「未传」（null）与「传了零值」。响应侧 snake_case 序列化仍用 Jackson `@JsonProperty`（`@BindParam` 只管入参）。
 3. **各层显式空值防御，杜绝 NPE/500**：入参 `null` 是唯一合法的「未传」表达，禁止空串/`0` 哨兵值；字符串入参先 `trimToNull` 归一；逗号拆分的多值参数过滤空 token，拆分后空集合视为未传（防 MyBatis `<foreach>` 生成 `IN ()` 非法 SQL）；非法枚举值立即抛 `BusinessException(VALIDATION_ERROR)`，绝不静默忽略；`BigDecimal` 比较一律用 `compareTo` 而非 `equals`；值对象集合字段构造时 `List.copyOf`（拒绝 null 与 null 元素）；空查询结果返回空集合而非 `null`；可空字段以 `org.springframework.lang.@Nullable` 显式标注；单测须覆盖「全条件为 null / 空白串 / 空集合 / 区间单端」等空值用例。
+4. **注解竖排排版**：当同一目标（record 组件、方法、类）上有多个注解时，每个注解独占一行，目标类型声明另起一行收尾，禁止多个注解挤在同一行导致折行错位；多字段 record 头部按业务维度用 `// ==== 分组名 ====` 注释 + 空行分段。排版基准示例：`order/dto/OrderRequest.java`（`@BindParam` + Bean Validation 竖排、分页/筛选/排序三段分组）。
+5. **优先复用公共工具类，杜绝重复造轮子**：编写归一化、解析、格式转换等通用逻辑前，**必须先检查 `common/web/` 下是否已有同等能力的工具类**（如 `param/ParamUtils`），有则直接复用，禁止在业务类中私有重写；确无现成实现、且该逻辑与具体业务无关并预计存在第二个消费方（如导出模块复用）时，应直接沉淀为 `common/web/` 下的公共工具类并补充单测，而非私有在业务 Service 内。反例警示：`trimToNull` 曾私有在 `OrderService`，已抽取为 `ParamUtils` 并让 `SortField.fromName`/`SortDirection.fromName` 同步委托。
+6. **注释精简，只说签名看不出来的事**：类 javadoc 1-3 行说明职责即可；方法 javadoc 原则上 1 行说明功能；`@param`/`@return` 仅在参数含义、取值约束或返回值语义无法从签名自明时才写，且每个 1 行以内。**禁止**：长篇复述设计文档内容（契约细节以 docs/ 为准，注释留引用即可）、解释历史改动过程、为方法体只有一两行的简单方法写多行 javadoc。仅当存在签名无法表达的**关键设计决策或边界约束**（如「BigDecimal 必须用 compareTo」「NULL 视为最小值与 MySQL 对齐」）时才额外说明。排版基准示例：`common/web/param/ParamUtils.java`。
 
 ### 前端结构
 
@@ -136,7 +140,7 @@ npm run test:watch
 - API v1 统一路径前缀（`ApiWebMvcConfiguration` 为所有 `@RestController` 追加 `/api/v1`）。
 - `trace_id` 生成与链路透传（含异步线程 MDC 上下文传递）。
 - MySQL 数据源与 Flyway 迁移接入（`spring.datasource.*` + `spring.flyway.enabled=true`，应用启动时自动执行迁移脚本）。
-- 订单列表接口（真实 MyBatis + MySQL 持久化、服务端分页 + 条件筛选 + 排序白名单与 sort 回显，契约见 `docs/order-query-design.md`；含内存/MyBatis 行为对齐测试）。
+- 订单列表接口（真实 MyBatis + MySQL 持久化、服务端分页 + 条件筛选 + 排序白名单与 sort_by/sort_order 回显，契约见 `docs/order-query-design.md`；含内存/MyBatis 行为对齐测试）。
 - 导出任务列表接口（空列表占位）。
 - 前端订单列表页（react-query + antd Table 分页）。
 
