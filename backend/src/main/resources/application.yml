@@ -24,9 +24,8 @@ logging:
     level: "%5p [${spring.application.name:},%X{trace_id:-}]"
 
 # 后续迭代按 be-td.md 第 12 章补充 Redis/RabbitMQ/导出目录等配置。
-# 已接入真实 MySQL 数据源与 Flyway；建表脚本放置在 src/main/resources/db/migration/V x__xxx.sql，
-# 由 Flyway 启动时自动执行（当前尚未提供迁移脚本，仅创建 flyway_schema_history 表）。
-# 订单查询仍由 InMemoryOrderMapper 提供内存 Mock，替换为真实 MyBatis 实现时再新增迁移脚本。
+# 建表脚本放置在 src/main/resources/db/migration/V x__xxx.sql，由 Flyway 启动时自动执行。
 mybatis:
-  map-underscore-to-camel-case: true
-  mapper-locations: classpath:mapper/**/*.xml
+  map-underscore-to-camel-case: true                  # 下划线列名 -> 驼峰属性
+  arg-name-based-constructor-auto-mapping: true       # record 实体按构造器参数名自动映射（需 -parameters 编译参数，starter parent 默认开启）
+  mapper-locations: classpath:mapper/**/*.xml          # XML 动态 SQL（订单查询见 mapper/OrderMapper.xml）

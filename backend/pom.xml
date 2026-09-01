@@ -35,8 +35,7 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- MyBatis 持久层。当前未配置数据源时仅引入依赖（自动配置会因缺少 DataSource 而跳过），
-             订单查询暂时由 InMemoryOrderMapper 提供 Mock 数据；接入 MySQL 后启用，见 be-td.md 5.1。 -->
+        <!-- MyBatis 持久层，配合 MySQL + Flyway 使用；SQL 映射见 resources/mapper/。 -->
         <dependency>
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter</artifactId>
