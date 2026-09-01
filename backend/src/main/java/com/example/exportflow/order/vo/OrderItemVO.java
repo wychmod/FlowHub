@@ -28,6 +28,9 @@ public record OrderItemVO(
         @JsonProperty("customer_phone")
         String customerPhone,
 
+        @JsonProperty("shipping_province")
+        String shippingProvince,
+
         @JsonProperty("total_amount")
         BigDecimal totalAmount,
 
