@@ -11,11 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 订单查询接口。
- * <p>
- * 复杂查询入参统一封装为 {@link OrderRequest}，避免控制器层散落多个 {@code @RequestParam}。
- * 默认值与校验规则都收敛在请求 DTO 内，后续新增筛选条件时只需要扩展该对象。
- * <p>{@code /api/v1} 前缀由 {@code ApiWebMvcConfiguration} 统一追加，这里只声明相对路径 {@code /orders}。
+ * 订单查询接口，入参统一封装为 {@link OrderRequest}（record + @BindParam）。
  */
 @RestController
 @RequestMapping("/orders")
@@ -28,14 +24,7 @@ public class OrderController {
         this.orderService = orderService;
     }
 
-    /**
-     * 查询订单分页数据。
-     *
-     * <p>直接返回裸对象，统一 Envelope 由 {@code ApiResponseAdvice} 自动包装。
-     *
-     * @param request 订单查询请求，承载分页参数和默认值
-     * @return 订单分页结果
-     */
+    /** 分页查询订单。 */
     @GetMapping
     public OrderPageResp listOrders(@Valid @ModelAttribute OrderRequest request) {
         return orderService.listOrders(request);

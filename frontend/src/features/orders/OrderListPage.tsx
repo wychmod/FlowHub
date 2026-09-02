@@ -5,11 +5,17 @@ import type { TableColumnsType } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { ApiError } from '../../api/http';
-import { listOrders, type OrderItem, type OrderPage, type OrderQuery } from './api';
+import { listOrders, type OrderItem, type OrderPage } from './api';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50] as const;
 
-const DEFAULT_QUERY: Required<OrderQuery> = {
+/** 页面当前使用的查询状态：筛选/排序等完整契约见 api.ts 的 OrderQuery（设计文档第八节第 7 步）。 */
+interface PageState {
+  page: number;
+  pageSize: number;
+}
+
+const DEFAULT_QUERY: PageState = {
   page: 1,
   pageSize: 10,
 };
@@ -31,6 +37,7 @@ const COLUMNS: TableColumnsType<OrderItem> = [
   },
   { title: '销售渠道', dataIndex: 'sales_channel' },
   { title: '客户姓名', dataIndex: 'customer_name' },
+  { title: '收货省份', dataIndex: 'shipping_province' },
   {
     title: '订单金额',
     dataIndex: 'total_amount',
@@ -46,10 +53,11 @@ const COLUMNS: TableColumnsType<OrderItem> = [
 
 /**
  * 订单列表页。
- * 页面只维护当前后端已实现的查询条件：页码 page 与每页条数 page_size。
+ * 页面当前仅维护分页状态（page / page_size）；筛选与排序参数的完整契约已在 api.ts 的
+ * OrderQuery 中就绪（docs/order-query-design.md 第八节第 7 步），后续接入筛选表单时直接扩展。
  */
 export function OrderListPage() {
-  const [query, setQuery] = useState<Required<OrderQuery>>(DEFAULT_QUERY);
+  const [query, setQuery] = useState<PageState>(DEFAULT_QUERY);
 
   const { data, error, isError, isFetching, refetch } = useQuery<OrderPage, ApiError>({
     queryKey: ['orders', query],

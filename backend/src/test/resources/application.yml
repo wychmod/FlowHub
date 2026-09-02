@@ -1,10 +1,16 @@
 # 测试环境数据源：使用 H2 内存库（MySQL 兼容模式）替代外部 MySQL。
 # @SpringBootTest 启动完整上下文时会触发 Flyway 初始化，改用该数据源后，
-# 单元/集成测试无需依赖本机 MySQL 即可运行。
-# 主配置 application.yml 的 spring.flyway.enabled 与 mybatis 配置在此仍生效；
-# 当前尚无迁移脚本，Flyway 在测试上下文仅创建 flyway_schema_history 表。
+# 单元/集成测试无需依赖本机 MySQL 即可运行（订单测试数据由 TestOrderDataSeeder 写入）。
+# Flyway 在测试上下文自动执行 db/migration 迁移（spring.flyway.enabled 默认即为 true）。
 spring:
   datasource:
     url: jdbc:h2:mem:exportflow_test;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
     password: ""
+
+# 注意：本文件会整体遮蔽主 application.yml（同名 classpath 资源 test-classes 优先），
+# 因此 mybatis 配置需在此重复声明，与主配置保持一致；改动时两处同步。
+mybatis:
+  map-underscore-to-camel-case: true
+  arg-name-based-constructor-auto-mapping: true
+  mapper-locations: classpath:mapper/**/*.xml

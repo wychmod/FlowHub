@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单查询 MyBatis 实现：动态 SQL + 排序 tie-breaker + 空值跳过。
+
+  安全要点：
+  1. 所有用户输入值一律 #{} 预编译参数化；
+  2. ORDER BY 无法参数化，只能 ${} 拼接，但取值仅来自 SortField/SortDirection 枚举的
+     白名单映射（column()/name()），不包含任何用户输入，杜绝 SQL 注入；
+  3. 所有动态条件都有 null/空集合守卫（空值契约见 OrderCriteria：null/空集合 = 无条件）。
+-->
+<mapper namespace="com.example.exportflow.order.mapper.OrderMapper">
+
+    <!-- 筛选条件公共片段：两个语句的参数对象都以 criteria 路径暴露筛选条件
+         （countByCriteria 经 @Param("criteria")，selectPage 经 OrderQuery 的 criteria 属性），
+         因此这里统一引用 criteria.xxx。 -->
+    <sql id="criteriaWhere">
+        <where>
+            <if test="criteria.ids != null and criteria.ids.size() > 0">
+                AND id IN
+                <foreach collection="criteria.ids" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </if>
+            <if test="criteria.statuses != null and criteria.statuses.size() > 0">
+                AND order_status IN
+                <foreach collection="criteria.statuses" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </if>
+            <if test="criteria.salesChannels != null and criteria.salesChannels.size() > 0">
+                AND sales_channel IN
+                <foreach collection="criteria.salesChannels" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </if>
+            <if test="criteria.currencies != null and criteria.currencies.size() > 0">
+                AND currency IN
+                <foreach collection="criteria.currencies" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </if>
+            <if test="criteria.customerName != null">
+                AND customer_name LIKE CONCAT('%', #{criteria.customerName}, '%')
+            </if>
+            <if test="criteria.orderNo != null">
+                AND order_no LIKE CONCAT(#{criteria.orderNo}, '%')
+            </if>
+            <if test="criteria.customerPhone != null">
+                AND customer_phone = #{criteria.customerPhone}
+            </if>
+            <if test="criteria.amountMin != null">
+                AND total_amount &gt;= #{criteria.amountMin}
+            </if>
+            <if test="criteria.amountMax != null">
+                AND total_amount &lt;= #{criteria.amountMax}
+            </if>
+            <if test="criteria.createdAtBegin != null">
+                AND created_at &gt;= #{criteria.createdAtBegin}
+            </if>
+            <if test="criteria.createdAtEnd != null">
+                AND created_at &lt; #{criteria.createdAtEnd}
+            </if>
+        </where>
+    </sql>
+
+    <!-- 按筛选条件计数（分页 total / total_pages）。 -->
+    <select id="countByCriteria" resultType="long">
+        SELECT COUNT(*)
+        FROM orders
+        <include refid="criteriaWhere"/>
+    </select>
+
+    <!--
+      分页查询：列显式别名为驼峰，配合 arg-name-based-constructor-auto-mapping
+      按构造器参数名装配 Order record（record 无 setter，走构造器映射）。
+      排序契约：主排序 + id tie-breaker，方向与主排序一致（设计文档第三节第 3 点）。
+    -->
+    <select id="selectPage" resultType="com.example.exportflow.order.entity.Order">
+        SELECT
+            id,
+            order_no       AS orderNo,
+            order_status   AS orderStatus,
+            sales_channel  AS salesChannel,
+            customer_name  AS customerName,
+            customer_phone AS customerPhone,
+            shipping_province AS shippingProvince,
+            total_amount   AS totalAmount,
+            currency,
+            created_at     AS createdAt
+        FROM orders
+        <include refid="criteriaWhere"/>
+        ORDER BY ${criteria.sortField().column()} ${criteria.sortDirection().name()},
+                 id ${criteria.sortDirection().name()}
+        LIMIT #{pageSize} OFFSET #{offset}
+    </select>
+</mapper>
