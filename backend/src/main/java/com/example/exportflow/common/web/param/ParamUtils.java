@@ -129,6 +129,27 @@ public final class ParamUtils {
                 .map(value -> value.toUpperCase(Locale.ROOT))
                 .distinct()
                 .toList();
+        return validateWhitelist(values, whitelist, field);
+    }
+
+    /**
+     * 多值枚举解析（集合入参，供 JSON 快照数组使用）：逐项 trim + 大写归一 + 去重 + 剔除空白项，
+     * 未命中白名单抛 400。
+     */
+    public static List<String> parseMultiEnum(List<String> rawValues, List<String> whitelist, String field) {
+        if (rawValues == null) {
+            return List.of();
+        }
+        List<String> values = rawValues.stream()
+                .map(ParamUtils::trimToNull)
+                .filter(value -> value != null)
+                .map(value -> value.toUpperCase(Locale.ROOT))
+                .distinct()
+                .toList();
+        return validateWhitelist(values, whitelist, field);
+    }
+
+    private static List<String> validateWhitelist(List<String> values, List<String> whitelist, String field) {
         for (String value : values) {
             if (!whitelist.contains(value)) {
                 throw validation(field + " 含非法枚举值：" + value);

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -162,7 +163,7 @@ class ParamUtilsTest {
 
     @Test
     void parseMultiEnum_未传与空白输入返回空列表() {
-        assertThat(ParamUtils.parseMultiEnum(null, List.of("PAID"), "order_status")).isEmpty();
+        assertThat(ParamUtils.parseMultiEnum((String) null, List.of("PAID"), "order_status")).isEmpty();
         assertThat(ParamUtils.parseMultiEnum("   ", List.of("PAID"), "order_status")).isEmpty();
         assertThat(ParamUtils.parseMultiEnum(" , ", List.of("PAID"), "order_status")).isEmpty();
     }
@@ -179,6 +180,29 @@ class ParamUtilsTest {
                 .isInstanceOfSatisfying(BusinessException.class, ex -> {
                     assertThat(ex.getErrorCode()).isEqualTo(CommonErrorCode.VALIDATION_ERROR);
                     assertThat(ex.getMessage()).contains("order_status", "REFUNDED");
+                });
+    }
+
+    @Test
+    void parseMultiEnumList_未传与空白项返回空列表() {
+        assertThat(ParamUtils.parseMultiEnum((List<String>) null, List.of("PAID"), "order_status")).isEmpty();
+        assertThat(ParamUtils.parseMultiEnum(List.of("  ", ""), List.of("PAID"), "order_status")).isEmpty();
+    }
+
+    @Test
+    void parseMultiEnumList_大写归一剔空白并去重() {
+        // Arrays.asList 允许 null 元素，模拟真实入参中的 null 项
+        assertThat(ParamUtils.parseMultiEnum(Arrays.asList("paid", " PENDING", null, "paid"),
+                List.of("PAID", "PENDING"), "order_status"))
+                .isEqualTo(List.of("PAID", "PENDING"));
+    }
+
+    @Test
+    void parseMultiEnumList_未命中白名单抛400() {
+        assertThatThrownBy(() -> ParamUtils.parseMultiEnum(List.of("PAID", "FOO"), List.of("PAID"), "order_status"))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(CommonErrorCode.VALIDATION_ERROR);
+                    assertThat(ex.getMessage()).contains("order_status", "FOO");
                 });
     }
 }
