@@ -10,7 +10,18 @@ body,
   height: 100%;
 }
 
+html {
+  /* 恒为纵向滚动条预留轨道位，避免内容高度在视口上下穿越时整页横向抖动 */
+  scrollbar-gutter: stable;
+}
+
 body {
-  /* antd Layout 内容区与页面背景保持一致，避免露白 */
+  /* 与 main.tsx 主题 token 的 colorBgLayout 保持一致（唯一灰底事实源），避免露白 */
   background-color: #f5f5f5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 表格数字等宽：金额/时间/手机号列对齐，减少换页重排的视觉抖动 */
+.orders-table .ant-table-cell {
+  font-variant-numeric: tabular-nums;
 }

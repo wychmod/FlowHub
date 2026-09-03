@@ -1,13 +1,28 @@
-import { ExportOutlined, OrderedListOutlined } from '@ant-design/icons';
-import { Layout, Menu, Typography } from 'antd';
+import {
+  ExportOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  OrderedListOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
+import { Button, Layout, Menu, Space, Tag, Typography, theme } from 'antd';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { PAGE_META, pageLabel } from './layoutMeta';
 
 export type PageKey = 'orders' | 'exports';
 
-const MENU_ITEMS = [
-  { key: 'orders', icon: <OrderedListOutlined />, label: '订单列表' },
-  { key: 'exports', icon: <ExportOutlined />, label: '导出任务' },
-];
+const PAGE_ICONS: Record<PageKey, ReactNode> = {
+  orders: <OrderedListOutlined />,
+  exports: <ExportOutlined />,
+};
+
+// 菜单文案由 PAGE_META 派生，页题与导航共用同一事实源
+const MENU_ITEMS = (Object.keys(PAGE_META) as PageKey[]).map((key) => ({
+  key,
+  icon: PAGE_ICONS[key],
+  label: PAGE_META[key].label,
+}));
 
 interface AppLayoutProps {
   selectedKey: PageKey;
@@ -15,28 +30,109 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
-/** 全局布局壳层（fe-td.md 3）：只负责导航与页面框架，不放业务逻辑。 */
+/** 全局布局壳层（fe-td.md 3）：深色 Sider（品牌区 + 导航）+ 白色顶栏（动态页题），不放业务逻辑。 */
 export function AppLayout({ selectedKey, onSelect, children }: AppLayoutProps) {
+  const [collapsed, setCollapsed] = useState(false);
+  const { token } = theme.useToken();
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Layout.Header
-        style={{ display: 'flex', alignItems: 'center', background: '#001529' }}
+      <Layout.Sider
+        width={208}
+        collapsible
+        collapsed={collapsed}
+        trigger={null}
+        style={{ position: 'sticky', top: 0, height: '100vh' }}
       >
-        <Typography.Title level={4} style={{ color: 'rgba(255, 255, 255, 0.95)', margin: 0 }}>
-          ExportFlow 导出中心
-        </Typography.Title>
-      </Layout.Header>
+        {/* 品牌区：与顶栏同高对齐；折叠时收缩为纯图标块 */}
+        <div
+          style={{
+            height: 56,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: 10,
+            paddingInline: collapsed ? 0 : 20,
+          }}
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: token.colorPrimary,
+              color: token.colorTextLightSolid,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              flexShrink: 0,
+            }}
+          >
+            <ThunderboltOutlined />
+          </div>
+          {!collapsed && (
+            <span
+              style={{
+                color: token.colorTextLightSolid,
+                fontSize: 16,
+                fontWeight: 600,
+                letterSpacing: 0.5,
+              }}
+            >
+              ExportFlow
+            </span>
+          )}
+        </div>
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          onClick={({ key }) => onSelect(key as PageKey)}
+          items={MENU_ITEMS}
+          style={{ borderInlineEnd: 0 }}
+        />
+      </Layout.Sider>
       <Layout>
-        <Layout.Sider width={200}>
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            onClick={({ key }) => onSelect(key as PageKey)}
-            items={MENU_ITEMS}
-            style={{ height: '100%', borderRight: 0 }}
-          />
-        </Layout.Sider>
+        <Layout.Header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
+          <Space size={12} align="center">
+            <Button
+              type="text"
+              aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed((c) => !c)}
+            />
+            <span
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 6,
+                background: token.colorPrimaryBg,
+                color: token.colorPrimary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 14,
+              }}
+            >
+              {PAGE_ICONS[selectedKey]}
+            </span>
+            <Typography.Title level={5} style={{ margin: 0 }}>
+              {pageLabel(selectedKey)}
+            </Typography.Title>
+          </Space>
+          <Tag color="gold">演示环境</Tag>
+        </Layout.Header>
         <Layout.Content style={{ padding: 24 }}>{children}</Layout.Content>
       </Layout>
     </Layout>

@@ -88,9 +88,12 @@ export-flow/
 │           └── vo/            #   列表行视图对象
 └── frontend/                  # Vite + React 前端
     └── src/
-        ├── main.tsx           # 入口（react-query、antd 中文环境）
+        ├── main.tsx           # 入口（react-query、antd 中文环境 + 全局主题 token）
         ├── App.tsx            # 根组件（轻量页面切换）
-        ├── app/AppLayout.tsx  # 全局布局（导航壳层）
+        ├── app/               # 布局壳层
+        │   ├── AppLayout.tsx  #   深色 Sider（品牌区 + 导航）+ 白色顶栏（动态页题）
+        │   └── layoutMeta.ts  #   页面元信息（Header 页题事实源）
+        ├── styles/index.css   # 全局样式（滚动条占位、表格数字等宽）
         ├── api/               # 跨 feature 复用的 HTTP 封装
         │   ├── http.ts        #   requestJson / ApiError / Envelope 类型
         │   └── exportApi.ts   #   导出任务 API（列表占位 + 创建 createExportJob）
@@ -110,6 +113,7 @@ export-flow/
 - **订单条件查询**：状态/渠道/币种多值筛选、姓名模糊、订单号前缀、手机号精确、金额与时间区间、排序白名单（`sort=total_amount,desc`），全契约见 [docs/order-query-design.md](docs/order-query-design.md)；入参 record + `@BindParam` 构造器绑定，各层显式空值防御。
 - **前端数据流**：`requestJson` 统一解析 Envelope → react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
 - **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式，按 be-td.md 4.5 契约先行，后端创建接口未实现前失败走统一错误提示）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
+- **前端界面主题与防抖动**：antd theme token 定制（深色 Sider 品牌区 + 白色顶栏动态页题 + Card 分区布局）；表格启用固定列宽（`tableLayout: fixed`）、固定表体高度（`scroll.y` 内部滚动）与 `scrollbar-gutter: stable` 滚动条占位，配合 react-query `placeholderData: keepPreviousData` 平滑过渡，翻页/排序/筛选时页面零抖动。
 
 ## 前端访问后端的方式
 

@@ -119,13 +119,14 @@ npm run test:watch
 
 前端代码位于 `frontend/src/`，按应用层、API 层、业务 feature 分层：
 
-- `main.tsx`：应用入口，挂载 React 根节点，配置 react-query、antd 中文语言包、dayjs 中文 locale；`ConfigProvider` 内以 antd `<App>` 包装根组件（页面经 `App.useApp()` 使用 `message`/`modal`，避免静态方法无上下文告警）。
+- `main.tsx`：应用入口，挂载 React 根节点，配置 react-query、antd 中文语言包、dayjs 中文 locale；`ConfigProvider` 定制 antd theme（token：`borderRadius: 8`/`colorBgLayout`/中文字体栈；components：Layout headerBg/siderBg/bodyBg、Menu dark 胶囊选中态、Table headerBg），组件内颜色一律取 token 不硬编码；`ConfigProvider` 内以 antd `<App>` 包装根组件（页面经 `App.useApp()` 使用 `message`/`modal`，避免静态方法无上下文告警）。
 - `App.tsx`：根组件，目前用本地状态切换两个页面（尚未引入路由），向订单页传入 `onNavigate`（创建成功后「查看任务」跳转导出任务页）。
-- `app/AppLayout.tsx`：全局布局壳层，负责导航与页面框架，不包含业务逻辑。
+- `app/AppLayout.tsx`：全局布局壳层——深色 Sider（品牌 Logo 块 + 导航，collapsible 折叠按钮在顶栏，sticky 常驻）+ 白色顶栏（动态页题 + 页题图标块 + 「演示环境」Tag），不包含业务逻辑；页题文案事实源在 `app/layoutMeta.ts`（`PAGE_META`/`pageLabel`，node 单测覆盖），菜单文案由其派生。
+- `styles/index.css`：全局样式——`scrollbar-gutter: stable` 滚动条占位（防整页横跳）、`.orders-table` 数字等宽（`font-variant-numeric: tabular-nums`）。
 - `api/http.ts`：跨 feature 复用的 HTTP 封装。`requestJson` 解析后端 Envelope，HTTP/业务错误统一抛出 `ApiError`；默认走 Vite 代理，可通过 `VITE_API_BASE_URL` 直连后端。
 - `api/exportApi.ts`：导出任务领域 API：列表查询（占位）+ 创建接口 `createExportJob`（POST + `Idempotency-Key` 头，`selection` 勾选/筛选两种模式判别联合、`EXPORT_COLUMN_OPTIONS` 9 列白名单与相关类型按 be-td.md 4.5 与 PRD 7.3.2 契约先行；后端创建接口未实现前调用必然失败，走统一错误提示兜底）。
-- `features/orders/`：订单列表页（筛选 + 排序 + 勾选 + 导出入口，方案见 `docs/order-page-fe/`）。`OrderListPage` 为页面编排层与唯一状态持有者（草稿 antd Form / 已提交 filter+sort+page+pageSize / 本地 selectedIds 与导出弹窗，服务端数据只来自 useQuery 并做最近成功兜底）；`components/OrderFilterForm`（8 项筛选草稿表单，展开/收起）、`components/ExportModal`（导出范围只读 + 列/文件名配置 + 失败保留重试）；`filters.ts`（草稿→已提交映射与导出快照纯函数）、`selection.ts`（勾选 1000 上限规则）、`constants.ts`（枚举中文选项/Tag 色/默认排序分页）、`api.ts`（查询契约序列化 + `formatLocalDateTime` 时间格式事实源）。
-- `features/exports/`：导出任务页（占位）。
+- `features/orders/`：订单列表页（筛选 + 排序 + 勾选 + 导出入口，方案见 `docs/order-page-fe/`）。`OrderListPage` 为页面编排层与唯一状态持有者（草稿 antd Form / 已提交 filter+sort+page+pageSize / 本地 selectedIds 与导出弹窗，服务端数据只来自 useQuery 并做最近成功兜底）；useQuery 配置 `placeholderData: keepPreviousData`（`isPlaceholderData` 驱动表格遮罩、并 guard 排序回显与兜底 effect），`lastDataRef` 仅作查询失败时的错误兜底（F18）；9 列固定 width + `tableLayout: fixed` + `scroll x/y`（表体定高内滚）的防抖动列宽约定，翻页/排序/筛选零布局位移；页面本体为筛选/表格两张 Card，页题在布局顶栏；`components/OrderFilterForm`（8 项筛选草稿表单，展开/收起）、`components/ExportModal`（导出范围只读 + 列/文件名配置 + 失败保留重试）；`filters.ts`（草稿→已提交映射与导出快照纯函数）、`selection.ts`（勾选 1000 上限规则）、`constants.ts`（枚举中文选项/Tag 色/默认排序分页）、`api.ts`（查询契约序列化 + `formatLocalDateTime` 时间格式事实源）。
+- `features/exports/`：导出任务页（占位；Card 内固定列宽表格 + 自定义空状态，观感与订单页对齐）。
 
 `frontend/vite.config.ts` 将 `/api` 与 `/actuator` 代理到 `http://localhost:8080`。如需前端直连后端，可在 `frontend/.env.local` 中配置 `VITE_API_BASE_URL=http://localhost:8080`。后端 `WebConfig` 已允许 `http://localhost:5174` 的跨域请求。
 
@@ -146,6 +147,7 @@ npm run test:watch
 - 订单列表接口（真实 MyBatis + MySQL 持久化、服务端分页 + 条件筛选 + 排序白名单与 sort_by/sort_order 回显，契约见 `docs/order-query-design.md`；含内存/MyBatis 行为对齐测试）。
 - 导出任务列表接口（空列表占位）。
 - 前端订单列表页（react-query + antd Table 服务端分页）：8 项条件筛选（草稿/已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条，超限整体拒绝）、「导出已选 / 导出筛选结果」入口与配置弹窗（9 列白名单、文件名、幂等键，按 be-td.md 4.5 契约先行，后端创建接口就绪前失败走统一错误提示）；查询失败保留上次数据与用户意图。
+- 前端界面主题 token 化与列表防抖动治理：深色 Sider 品牌区 + 白色顶栏动态页题 + Card 分区布局（主题收敛于 `main.tsx` 的 ThemeConfig）；`scrollbar-gutter: stable` 滚动条占位、订单表格 9 列固定 width（`tableLayout: fixed`）与表体定高内滚（`scroll.y`）、`placeholderData: keepPreviousData` 平滑过渡，翻页/排序/筛选时零布局位移。
 
 设计文档中规划但尚未实现：
 - 导出任务创建接口（后端）：对 `OrderCriteria` 查询契约的 request snapshot 复用（「勾选导出」经 `ids` 字段精确取数，见 `docs/order-query-design.md` 第八节第 9 步）；前端创建入口已按 be-td.md 4.5 契约实现，联调待后端就绪（契约字段分歧处置见 `docs/order-page-fe/plan.md` 风险节）。

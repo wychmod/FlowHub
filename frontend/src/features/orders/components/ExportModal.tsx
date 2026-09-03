@@ -1,4 +1,5 @@
-import { Alert, Button, Checkbox, Form, Input, Modal, Space, Typography } from 'antd';
+import { FileExcelOutlined } from '@ant-design/icons';
+import { Alert, Button, Checkbox, Form, Input, Modal, Space, Typography, theme } from 'antd';
 import { useEffect } from 'react';
 import {
   EXPORT_COLUMN_OPTIONS,
@@ -56,6 +57,7 @@ export function ExportModal({
   onSubmit,
 }: ExportModalProps) {
   const [form] = Form.useForm<ExportFormValues>();
+  const { token } = theme.useToken();
 
   // 打开时恢复默认（默认 6 列、文件名留空），不依赖 Modal 销毁重建语义
   useEffect(() => {
@@ -90,7 +92,12 @@ export function ExportModal({
 
   return (
     <Modal
-      title="创建导出任务"
+      title={
+        <Space size={8}>
+          <FileExcelOutlined style={{ color: token.colorSuccess }} />
+          创建导出任务
+        </Space>
+      }
       open={open}
       okText="创建任务"
       cancelText="取消"

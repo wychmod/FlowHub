@@ -1,4 +1,4 @@
-import { DownOutlined, UpOutlined } from '@ant-design/icons';
+import { DownOutlined, SearchOutlined, UpOutlined } from '@ant-design/icons';
 import { Button, Col, DatePicker, Form, Input, InputNumber, Row, Select, Space } from 'antd';
 import type { FormInstance } from 'antd';
 import dayjs from 'dayjs';
@@ -157,7 +157,7 @@ export function OrderFilterForm({ form, onSubmit, onReset }: OrderFilterFormProp
       <Row>
         <Col span={24} style={{ textAlign: 'right' }}>
           <Space>
-            <Button type="primary" htmlType="submit">
+            <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
               查询
             </Button>
             <Button onClick={onReset}>重置</Button>

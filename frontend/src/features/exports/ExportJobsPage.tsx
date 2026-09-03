@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Table, Tag, Typography } from 'antd';
+import { Alert, Card, Empty, Table, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import dayjs from 'dayjs';
 import { listExportJobs, type ExportJobItem, type ExportJobStatus } from '../../api/exportApi';
@@ -12,17 +12,20 @@ const STATUS_COLOR: Record<ExportJobStatus, string> = {
   EXPIRED: 'default',
 };
 
+// 固定列宽 + tableLayout fixed，与订单列表页观感与防抖动口径一致
 const COLUMNS: TableColumnsType<ExportJobItem> = [
-  { title: '任务 ID', dataIndex: 'job_id' },
-  { title: '任务编号', dataIndex: 'job_no' },
+  { title: '任务 ID', dataIndex: 'job_id', width: 280, ellipsis: true },
+  { title: '任务编号', dataIndex: 'job_no', width: 180, ellipsis: true },
   {
     title: '状态',
     dataIndex: 'status',
+    width: 100,
     render: (status: ExportJobStatus) => <Tag color={STATUS_COLOR[status]}>{status}</Tag>,
   },
   {
     title: '创建时间',
     dataIndex: 'created_at',
+    width: 170,
     render: (value: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
   },
 ];
@@ -38,10 +41,7 @@ export function ExportJobsPage() {
   });
 
   return (
-    <div>
-      <Typography.Title level={5} style={{ margin: 0, marginBottom: 16 }}>
-        导出任务
-      </Typography.Title>
+    <Card>
       <Alert
         type="info"
         showIcon
@@ -50,12 +50,18 @@ export function ExportJobsPage() {
         description="GET /api/v1/export-jobs 已就绪并返回空列表；任务创建、进度推送（SSE）、下载与重试将在后续迭代按 be-td.md 实现。"
       />
       <Table<ExportJobItem>
+        size="middle"
         rowKey="job_id"
         columns={COLUMNS}
         dataSource={data?.items ?? []}
         loading={isFetching}
+        scroll={{ x: 730 }}
+        tableLayout="fixed"
+        locale={{
+          emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无导出任务" />,
+        }}
         pagination={false}
       />
-    </div>
+    </Card>
   );
 }
