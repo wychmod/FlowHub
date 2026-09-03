@@ -10,7 +10,7 @@
 
 ## 项目概述
 
-ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化（导出快照复用待后续迭代）；订单列表页前端（筛选 + 排序 + 勾选 + 导出入口）已按 `docs/order-page-fe/` 四件套方案实现。
+ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化（导出快照复用待后续迭代）；订单列表页前端（筛选 + 排序 + 勾选 + 导出入口）已按 `docs/order-page-fe/` 四件套方案实现。导出进度 SSE 前端消费（混合实时状态同步：SSE 通知 + `job_version` 版本栅栏 + HTTP 校准 + 轮询降级）的设计与开发计划见 `docs/export-sse-design.md`——纯前端交付计划（`useExportEvents` + 导出任务页），所有未实现的后端依赖（创建接口/状态机执行器/SSE 端点/列表真实化等）统一列为前置条件管理，实现蓝本为参考项目 project-export-flow 的 `useExportEvents`。
 
 - **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Flyway + MySQL、Maven（已内置 Wrapper）。
 - **前端**：React 18、TypeScript、Vite 6、antd 6、@tanstack/react-query 5、dayjs。
