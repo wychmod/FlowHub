@@ -30,4 +30,9 @@ public record ApiResponse<T>(
     public static <T> ApiResponse<T> failure(String code, String message) {
         return new ApiResponse<>(code, message, null, TraceIdSupport.currentTraceId());
     }
+
+    /** 失败 Envelope（携带 data，如参数校验的字段级错误）。 */
+    public static <T> ApiResponse<T> failure(String code, String message, T data) {
+        return new ApiResponse<>(code, message, data, TraceIdSupport.currentTraceId());
+    }
 }
