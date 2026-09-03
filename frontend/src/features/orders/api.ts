@@ -115,6 +115,14 @@ export async function listOrders(params: OrderQuery = {}): Promise<OrderPage> {
   return requestJson<OrderPage>(qs ? `/api/v1/orders?${qs}` : '/api/v1/orders');
 }
 
+/**
+ * 本地时间格式（无时区后缀）：查询参数与导出快照共用的唯一时间格式事实源。
+ * 后端时间契约：禁止 toISOString()（其 UTC Z 后缀会被后端 400）。
+ */
+export function formatLocalDateTime(value: Dayjs): string {
+  return value.format('YYYY-MM-DDTHH:mm:ss');
+}
+
 /** 多值筛选序列化：空数组视为未传（对齐后端「空集合 = 无条件」契约）。 */
 function appendMultiValue(query: URLSearchParams, key: string, values?: readonly string[]): void {
   if (values == null || values.length === 0) return;
@@ -132,5 +140,5 @@ function appendString(query: URLSearchParams, key: string, value?: string): void
 /** 时间参数序列化：dayjs 对象按本地格式（无时区）输出，字符串原样透传。 */
 function appendTime(query: URLSearchParams, key: string, value?: string | Dayjs): void {
   if (value == null) return;
-  query.set(key, typeof value === 'string' ? value : value.format('YYYY-MM-DDTHH:mm:ss'));
+  query.set(key, typeof value === 'string' ? value : formatLocalDateTime(value));
 }

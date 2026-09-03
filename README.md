@@ -2,7 +2,7 @@
 
 企业级异步导出中心（订单筛选 → 异步 Excel 导出 → 进度推送 → 下载）。
 
-当前仓库为**项目初始骨架**：按 [docs/prd.md](docs/prd.md)、[docs/be-td.md](docs/be-td.md)、[docs/fe-td.md](docs/fe-td.md) 搭建的前后端最小可运行案例，仅打通链路与目录结构，业务能力在后续迭代实现。
+当前仓库为按 [docs/prd.md](docs/prd.md)、[docs/be-td.md](docs/be-td.md)、[docs/fe-td.md](docs/fe-td.md) 搭建的教学/演示项目：订单条件查询（后端接口 + 前端完整列表页，含筛选、排序、勾选与导出入口）已实现，异步导出闭环（Outbox/MQ/Excel/SSE）在后续迭代实现。
 
 ## 技术栈
 
@@ -93,13 +93,13 @@ export-flow/
         ├── app/AppLayout.tsx  # 全局布局（导航壳层）
         ├── api/               # 跨 feature 复用的 HTTP 封装
         │   ├── http.ts        #   requestJson / ApiError / Envelope 类型
-        │   └── exportApi.ts   #   导出任务 API
+        │   └── exportApi.ts   #   导出任务 API（列表占位 + 创建 createExportJob）
         └── features/          # 业务 feature
-            ├── orders/        #   订单列表页（Table + 服务端分页）
+            ├── orders/        #   订单列表页（筛选 + 排序 + 勾选 + 导出入口）
             └── exports/       #   导出任务页（占位）
 ```
 
-与 TD 文档的差异（均为后续迭代内容）：后端 `mq/`、`excel/`、`schedule/` 等包在引入 RabbitMQ/POI 时创建；订单查询已接入真实 MyBatis（动态 SQL + record 构造器自动映射 + V8 索引），`InMemoryOrderMapperImpl` 仅保留为行为基准供对齐测试；前端 `selection.ts`、`useExportEvents.ts` 等在实现勾选导出与 SSE 时创建。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`）。
+与 TD 文档的差异（均为后续迭代内容）：后端 `mq/`、`excel/`、`schedule/` 等包在引入 RabbitMQ/POI 时创建；订单查询已接入真实 MyBatis（动态 SQL + record 构造器自动映射 + V8 索引），`InMemoryOrderMapperImpl` 仅保留为行为基准供对齐测试；前端 `useExportEvents.ts` 等在实现 SSE 进度推送时创建（订单页筛选/勾选/导出入口已实现）。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`）。
 
 ## 已实现的最小案例
 
@@ -109,6 +109,7 @@ export-flow/
 - **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0`、非法枚举值、区间颠倒等可复现）。
 - **订单条件查询**：状态/渠道/币种多值筛选、姓名模糊、订单号前缀、手机号精确、金额与时间区间、排序白名单（`sort=total_amount,desc`），全契约见 [docs/order-query-design.md](docs/order-query-design.md)；入参 record + `@BindParam` 构造器绑定，各层显式空值防御。
 - **前端数据流**：`requestJson` 统一解析 Envelope → react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
+- **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式，按 be-td.md 4.5 契约先行，后端创建接口未实现前失败走统一错误提示）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
 
 ## 前端访问后端的方式
 
@@ -135,4 +136,4 @@ VITE_API_BASE_URL=http://localhost:8080
 1. 导出任务对订单查询契约的复用：创建导出任务时以 `OrderCriteria` 做 request snapshot（筛选导出），「勾选导出」经 `ids` 字段精确取数（[docs/order-query-design.md](docs/order-query-design.md) 第八节第 9 步；查询契约、排序与 MyBatis 持久化已实现）。
 2. 导出任务闭环：创建/详情/重试/下载接口、状态机、Outbox + RabbitMQ（be-td.md 4.5-4.10、6）。
 3. 进度推送：SSE `job.progress` 事件 + 前端 `useExportEvents`（be-td.md 10、fe-td.md 6）。
-4. 前端功能页：订单筛选、导出配置弹窗、任务中心轮询降级（fe-td.md 5-8）。
+4. 前端任务中心：导出任务列表、进度展示（SSE + 轮询降级）、下载与重试入口（fe-td.md 6-8；订单页筛选、勾选与导出入口已实现）。

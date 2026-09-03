@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ConfigProvider } from 'antd';
+import { App as AntdApp, ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
@@ -23,7 +23,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ConfigProvider locale={zhCN}>
-        <App />
+        {/* antd App 包装：页面经 App.useApp() 使用 message/modal，静态方法无上下文 */}
+        <AntdApp>
+          <App />
+        </AntdApp>
       </ConfigProvider>
     </QueryClientProvider>
   </React.StrictMode>,

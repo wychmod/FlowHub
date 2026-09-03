@@ -12,7 +12,7 @@ export default function App() {
 
   return (
     <AppLayout selectedKey={page} onSelect={setPage}>
-      {page === 'orders' ? <OrderListPage /> : <ExportJobsPage />}
+      {page === 'orders' ? <OrderListPage onNavigate={setPage} /> : <ExportJobsPage />}
     </AppLayout>
   );
 }

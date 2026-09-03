@@ -10,7 +10,7 @@
 
 ## 项目概述
 
-ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。当前仓库为**初始骨架**，仅打通了最小可运行的前后端链路。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化（导出快照复用待后续迭代）。
+ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化（导出快照复用待后续迭代）；订单列表页前端（筛选 + 排序 + 勾选 + 导出入口）已按 `docs/order-page-fe/` 四件套方案实现。
 
 - **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Flyway + MySQL、Maven（已内置 Wrapper）。
 - **前端**：React 18、TypeScript、Vite 6、antd 6、@tanstack/react-query 5、dayjs。
@@ -119,12 +119,12 @@ npm run test:watch
 
 前端代码位于 `frontend/src/`，按应用层、API 层、业务 feature 分层：
 
-- `main.tsx`：应用入口，挂载 React 根节点，配置 react-query、antd 中文语言包、dayjs 中文 locale。
-- `App.tsx`：根组件，目前用本地状态切换两个页面（尚未引入路由）。
+- `main.tsx`：应用入口，挂载 React 根节点，配置 react-query、antd 中文语言包、dayjs 中文 locale；`ConfigProvider` 内以 antd `<App>` 包装根组件（页面经 `App.useApp()` 使用 `message`/`modal`，避免静态方法无上下文告警）。
+- `App.tsx`：根组件，目前用本地状态切换两个页面（尚未引入路由），向订单页传入 `onNavigate`（创建成功后「查看任务」跳转导出任务页）。
 - `app/AppLayout.tsx`：全局布局壳层，负责导航与页面框架，不包含业务逻辑。
 - `api/http.ts`：跨 feature 复用的 HTTP 封装。`requestJson` 解析后端 Envelope，HTTP/业务错误统一抛出 `ApiError`；默认走 Vite 代理，可通过 `VITE_API_BASE_URL` 直连后端。
-- `api/exportApi.ts`：导出任务相关 API。
-- `features/orders/`：订单列表页、订单 API（`api.ts`），后续将补充勾选状态管理（`selection.ts`）。
+- `api/exportApi.ts`：导出任务领域 API：列表查询（占位）+ 创建接口 `createExportJob`（POST + `Idempotency-Key` 头，`selection` 勾选/筛选两种模式判别联合、`EXPORT_COLUMN_OPTIONS` 9 列白名单与相关类型按 be-td.md 4.5 与 PRD 7.3.2 契约先行；后端创建接口未实现前调用必然失败，走统一错误提示兜底）。
+- `features/orders/`：订单列表页（筛选 + 排序 + 勾选 + 导出入口，方案见 `docs/order-page-fe/`）。`OrderListPage` 为页面编排层与唯一状态持有者（草稿 antd Form / 已提交 filter+sort+page+pageSize / 本地 selectedIds 与导出弹窗，服务端数据只来自 useQuery 并做最近成功兜底）；`components/OrderFilterForm`（8 项筛选草稿表单，展开/收起）、`components/ExportModal`（导出范围只读 + 列/文件名配置 + 失败保留重试）；`filters.ts`（草稿→已提交映射与导出快照纯函数）、`selection.ts`（勾选 1000 上限规则）、`constants.ts`（枚举中文选项/Tag 色/默认排序分页）、`api.ts`（查询契约序列化 + `formatLocalDateTime` 时间格式事实源）。
 - `features/exports/`：导出任务页（占位）。
 
 `frontend/vite.config.ts` 将 `/api` 与 `/actuator` 代理到 `http://localhost:8080`。如需前端直连后端，可在 `frontend/.env.local` 中配置 `VITE_API_BASE_URL=http://localhost:8080`。后端 `WebConfig` 已允许 `http://localhost:5174` 的跨域请求。
@@ -145,14 +145,14 @@ npm run test:watch
 - MySQL 数据源与 Flyway 迁移接入（`spring.datasource.*` + `spring.flyway.enabled=true`，应用启动时自动执行迁移脚本）。
 - 订单列表接口（真实 MyBatis + MySQL 持久化、服务端分页 + 条件筛选 + 排序白名单与 sort_by/sort_order 回显，契约见 `docs/order-query-design.md`；含内存/MyBatis 行为对齐测试）。
 - 导出任务列表接口（空列表占位）。
-- 前端订单列表页（react-query + antd Table 分页）。
+- 前端订单列表页（react-query + antd Table 服务端分页）：8 项条件筛选（草稿/已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条，超限整体拒绝）、「导出已选 / 导出筛选结果」入口与配置弹窗（9 列白名单、文件名、幂等键，按 be-td.md 4.5 契约先行，后端创建接口就绪前失败走统一错误提示）；查询失败保留上次数据与用户意图。
 
 设计文档中规划但尚未实现：
-- 导出任务创建接口对 `OrderCriteria` 查询契约的 request snapshot 复用（「勾选导出」经 `ids` 字段精确取数，见 `docs/order-query-design.md` 第八节第 9 步）。
+- 导出任务创建接口（后端）：对 `OrderCriteria` 查询契约的 request snapshot 复用（「勾选导出」经 `ids` 字段精确取数，见 `docs/order-query-design.md` 第八节第 9 步）；前端创建入口已按 be-td.md 4.5 契约实现，联调待后端就绪（契约字段分歧处置见 `docs/order-page-fe/plan.md` 风险节）。
 - RabbitMQ、Redis、Outbox 事务发件箱模式。
 - Apache POI SXSSF 流式 Excel 生成。
-- 导出任务创建、重试、下载、SSE 进度推送。
-- 订单勾选导出、筛选导出、幂等创建、文件过期清理。
+- 导出任务重试、下载、SSE 进度推送与文件过期清理。
+- 前端导出任务页本体（列表/进度/下载）、筛选条件 URL 同步与路由。
 
 新增功能时，应保持后端各业务模块垂直自治（`order/` 或 `export/` 下自包含 `controller/dto/service/mapper/entity/vo`），横切 Web 能力只放在 `common/web/`。
 - 控制器层的复杂查询/提交入参优先封装为 `xxxRequest` DTO，不要在方法签名里堆叠多个 `@RequestParam` 或零散字段；默认值、校验规则和后续扩展字段都收敛在 Request DTO 内。DTO 采用 record 形态，snake_case 参数名经 `@BindParam` 绑定（见上文「后端编码规范」）。
