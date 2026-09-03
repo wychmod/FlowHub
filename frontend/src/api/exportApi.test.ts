@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createExportJob, EXPORT_COLUMN_OPTIONS } from './exportApi';
+import {
+  createExportJob,
+  downloadExportJob,
+  EXPORT_COLUMN_OPTIONS,
+  type ExportJobItem,
+} from './exportApi';
 
 /**
  * 模拟一个 Response：requestJson 只用到 ok/status/json 三个成员，无需真实全局 fetch。
@@ -116,6 +121,119 @@ describe('createExportJob', () => {
       code: 'EXPORT_COLUMNS_INVALID',
       traceId: 't-400',
       status: 400,
+    });
+  });
+});
+
+describe('downloadExportJob', () => {
+  /** 下载场景 Response 桩：成功是文件流、失败可能是 JSON 错误包或网关文本。 */
+  function stubDownloadResponse(options: {
+    ok: boolean;
+    status: number;
+    body?: string;
+    disposition?: string;
+  }): ReturnType<typeof vi.fn> {
+    const fake = {
+      ok: options.ok,
+      status: options.status,
+      blob: async () => ({ text: async () => options.body ?? '' }),
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === 'content-disposition' ? (options.disposition ?? null) : null,
+      },
+    } as unknown as Response;
+    const mock = vi.fn().mockResolvedValue(fake);
+    vi.stubGlobal('fetch', mock);
+    return mock;
+  }
+
+  /** node 测试环境无 DOM：stub document/window 供 saveBlob 触发下载。 */
+  function stubDownloadDom() {
+    const anchors: { href?: string; download?: string; click: ReturnType<typeof vi.fn> }[] = [];
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const a = { click: vi.fn() };
+        anchors.push(a);
+        return a;
+      },
+      body: { appendChild: vi.fn(), removeChild: vi.fn() },
+    });
+    const url = { createObjectURL: vi.fn(() => 'blob:mock-url'), revokeObjectURL: vi.fn() };
+    vi.stubGlobal('window', { URL: url });
+    return { anchors, url };
+  }
+
+  const succeededJob: ExportJobItem = {
+    job_id: 91,
+    job_no: 'EXP20260903-6F4A2C8D',
+    status: 'SUCCEEDED',
+    created_at: '2026-09-03T10:00:00',
+    file_name: 'orders_91.xlsx',
+  };
+
+  it('请求下载地址并携带 xlsx Accept 头，按 Content-Disposition 文件名触发保存', async () => {
+    const mock = stubDownloadResponse({
+      ok: true,
+      status: 200,
+      disposition: `attachment; filename*=UTF-8''%E8%AE%A2%E5%8D%95.xlsx`,
+    });
+    const dom = stubDownloadDom();
+
+    await downloadExportJob(succeededJob);
+
+    const [url, init] = mock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/v1/export-jobs/91/download');
+    expect(init.headers).toMatchObject({
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    expect(dom.anchors[0].download).toBe('订单.xlsx');
+    expect(dom.url.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+  });
+
+  it('无 Content-Disposition 时回退任务 file_name', async () => {
+    stubDownloadResponse({ ok: true, status: 200 });
+    const dom = stubDownloadDom();
+
+    await downloadExportJob(succeededJob);
+
+    expect(dom.anchors[0].download).toBe('orders_91.xlsx');
+  });
+
+  it('无响应头且任务缺 file_name 时用任务编号兜底命名', async () => {
+    stubDownloadResponse({ ok: true, status: 200 });
+    const dom = stubDownloadDom();
+
+    await downloadExportJob({ ...succeededJob, file_name: undefined });
+
+    expect(dom.anchors[0].download).toBe('export-EXP20260903-6F4A2C8D.xlsx');
+  });
+
+  it('410 JSON 错误包（伪装成下载响应）抛出带 code/trace_id 的 ApiError', async () => {
+    stubDownloadResponse({
+      ok: false,
+      status: 410,
+      body: JSON.stringify({
+        code: 'EXPORT_FILE_EXPIRED',
+        message: '导出文件已过期',
+        data: {},
+        trace_id: 'xyz-456',
+      }),
+    });
+
+    await expect(downloadExportJob(succeededJob)).rejects.toMatchObject({
+      code: 'EXPORT_FILE_EXPIRED',
+      message: '导出文件已过期',
+      status: 410,
+      traceId: 'xyz-456',
+    });
+  });
+
+  it('503 网关文本错误抛普通文本 ApiError（正文保留摘要）', async () => {
+    stubDownloadResponse({ ok: false, status: 503, body: 'Service Unavailable' });
+
+    await expect(downloadExportJob(succeededJob)).rejects.toMatchObject({
+      message: expect.stringContaining('Service Unavailable'),
+      status: 503,
     });
   });
 });

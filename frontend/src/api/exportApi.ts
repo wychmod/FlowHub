@@ -1,4 +1,5 @@
-import { requestJson } from './http';
+import { apiBaseUrl, requestJson } from './http';
+import { filenameFromDisposition, parseBlobError, saveBlob } from './download';
 import type {
   Currency,
   OrderSortDirection,
@@ -16,6 +17,8 @@ export interface ExportJobItem {
   job_no: string;
   status: ExportJobStatus;
   created_at: string;
+  /** 生成的文件名（含扩展名）；任务未完成时可能缺省，下载时作响应头解析失败后的兜底。 */
+  file_name?: string;
 }
 
 /** 导出任务分页响应。 */
@@ -103,6 +106,31 @@ export async function listExportJobs(params: { page: number; pageSize: number })
     page_size: String(params.pageSize),
   });
   return requestJson<ExportJobPage>(`/api/v1/export-jobs?${query.toString()}`);
+}
+
+/** Excel 文件的 MIME 类型（下载 Accept 头，与后端 Content-Type 对齐）。 */
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/**
+ * 下载导出文件（fe-td.md 7）：成功读取文件流并触发浏览器保存；
+ * 失败响应可能是 JSON 错误包（409/410/404）或网关文本，统一交 parseBlobError 转为 ApiError。
+ */
+export async function downloadExportJob(job: ExportJobItem): Promise<void> {
+  const response = await fetch(
+    apiBaseUrl(`/api/v1/export-jobs/${encodeURIComponent(job.job_id)}/download`),
+    { headers: { Accept: XLSX_MIME_TYPE } },
+  );
+  if (!response.ok) {
+    throw await parseBlobError(response);
+  }
+  const blob = await response.blob();
+  // 文件名兜底链：响应头解析 → 任务 file_name → 任务编号，保证下载文件名始终可用
+  saveBlob(
+    blob,
+    filenameFromDisposition(response.headers.get('Content-Disposition')) ??
+      job.file_name ??
+      `export-${job.job_no}.xlsx`,
+  );
 }
 
 /** 创建导出任务；幂等键由调用方每次明确点击时生成（PRD 7.4.2）。 */
