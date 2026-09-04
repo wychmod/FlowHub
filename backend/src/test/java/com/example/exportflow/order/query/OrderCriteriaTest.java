@@ -21,9 +21,10 @@ class OrderCriteriaTest {
     void nullCollectionsNormalizeToEmpty() {
         OrderCriteria criteria = new OrderCriteria(
                 null, null, null, null, null, null, null,
-                null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
+                null, null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
 
         assertThat(criteria.ids()).isEmpty();
+        assertThat(criteria.excludedIds()).isEmpty();
         assertThat(criteria.statuses()).isEmpty();
         assertThat(criteria.salesChannels()).isEmpty();
         assertThat(criteria.currencies()).isEmpty();
@@ -33,19 +34,23 @@ class OrderCriteriaTest {
     @Test
     void anyConditionMakesItNotEmpty() {
         OrderCriteria byName = new OrderCriteria(
-                null, null, null, null, "张", null, null,
-                null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
+                null, null, null, null, null, "张", null,
+                null, null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
         OrderCriteria byRange = new OrderCriteria(
                 null, null, null, null, null, null, null,
-                new BigDecimal("100"), null, null, null, SortField.CREATED_AT, SortDirection.DESC);
+                null, new BigDecimal("100"), null, null, null, SortField.CREATED_AT, SortDirection.DESC);
         OrderCriteria byTime = new OrderCriteria(
                 null, null, null, null, null, null, null,
-                null, null, LocalDateTime.of(2026, 1, 1, 0, 0), null,
+                null, null, null, LocalDateTime.of(2026, 1, 1, 0, 0), null,
                 SortField.CREATED_AT, SortDirection.DESC);
+        OrderCriteria byExcluded = new OrderCriteria(
+                null, List.of(1L), null, null, null, null, null,
+                null, null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
 
         assertThat(byName.isEmpty()).isFalse();
         assertThat(byRange.isEmpty()).isFalse();
         assertThat(byTime.isEmpty()).isFalse();
+        assertThat(byExcluded.isEmpty()).isFalse();
     }
 
     @Test
@@ -53,8 +58,8 @@ class OrderCriteriaTest {
         List<String> statuses = new ArrayList<>();
         statuses.add("PAID");
         OrderCriteria criteria = new OrderCriteria(
-                null, statuses, null, null, null, null, null,
-                null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
+                null, null, statuses, null, null, null, null,
+                null, null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
 
         // 构造后修改源集合不影响值对象（不可变语义）
         statuses.add("HACKED");
@@ -67,8 +72,8 @@ class OrderCriteriaTest {
     void nullCollectionElementsAreRejected() {
         // List.copyOf 拒绝 null 元素，快速失败而非留下隐患
         assertThatThrownBy(() -> new OrderCriteria(
-                null, List.of("PAID", null), null, null, null, null, null,
-                null, null, null, null, SortField.CREATED_AT, SortDirection.DESC))
+                null, null, List.of("PAID", null), null, null, null, null,
+                null, null, null, null, null, SortField.CREATED_AT, SortDirection.DESC))
                 .isInstanceOf(NullPointerException.class);
     }
 }

@@ -10,6 +10,7 @@ import java.util.List;
  * 集合字段恒非 null（空集合 = 无该条件），标量字段 null = 无该条件。
  *
  * @param ids            订单 ID 集合（IN），页面查询恒为空
+ * @param excludedIds    排除的订单 ID 集合（NOT IN），仅导出反选使用
  * @param statuses       订单状态（IN）
  * @param salesChannels  销售渠道（IN）
  * @param currencies     币种（IN）
@@ -25,6 +26,7 @@ import java.util.List;
  */
 public record OrderCriteria(
         List<Long> ids,
+        List<Long> excludedIds,
         List<String> statuses,
         List<String> salesChannels,
         List<String> currencies,
@@ -40,14 +42,16 @@ public record OrderCriteria(
 
     public OrderCriteria {
         ids = ids == null ? List.of() : List.copyOf(ids);
+        excludedIds = excludedIds == null ? List.of() : List.copyOf(excludedIds);
         statuses = statuses == null ? List.of() : List.copyOf(statuses);
         salesChannels = salesChannels == null ? List.of() : List.copyOf(salesChannels);
         currencies = currencies == null ? List.of() : List.copyOf(currencies);
     }
 
-    /** 是否无任何筛选条件（不含排序）。 */
+    /** 是否无任何筛选条件（不含排序与排除集合）。 */
     public boolean isEmpty() {
-        return ids.isEmpty() && statuses.isEmpty() && salesChannels.isEmpty() && currencies.isEmpty()
+        return ids.isEmpty() && excludedIds.isEmpty() && statuses.isEmpty() && salesChannels.isEmpty()
+                && currencies.isEmpty()
                 && customerName == null && orderNo == null && customerPhone == null
                 && amountMin == null && amountMax == null
                 && createdAtBegin == null && createdAtEnd == null;
