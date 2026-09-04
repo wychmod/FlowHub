@@ -95,6 +95,7 @@ npm run test:watch
   - `error/`：`ErrorCode`（HTTP 状态映射）、`BusinessException`、`GlobalExceptionHandler`，将异常统一转换为错误 Envelope；Bean Validation 失败（`BindException`/`MethodArgumentNotValidException`/`ConstraintViolationException`）在 `data.field_errors` 输出「字段路径 → 文案」对象映射（载体 `FieldErrorData`，与前端 `ApiError.fieldErrors` 结构一致，键为 Java 属性路径），`HttpMessageNotReadableException` 统一转 400 `VALIDATION_ERROR`；`ApiResponse.failure` 有携带 data 的三参重载。业务模块错误码（如 `export/error/ExportErrorCode`）在各自模块内实现 `ErrorCode` 接口，不进 `common/`。
   - `param/ParamUtils`：HTTP 入参归一化与解析公共工具（空值契约的代码化）：归一化类 `trimToNull`（null/空串/纯空白统一折叠为 null）、`splitMultiValue`（逗号多值拆分 + trim + 过滤空 token + 去重，空结果视为未传）、`enumFromName`（枚举常量名大小写不敏感解析，未识别返回 null 由调用方决定报错），失败由调用方决定报错方式；解析类 `parseDecimal`/`parseDateTime`/`parsePhone`/`parseMultiEnum`（数值/时间/手机号/多值枚举解析，null/空白返回 null 或空列表，非法统一抛 VALIDATION_ERROR 400，文案含字段名；`parseMultiEnum` 的 whitelist 由调用方注入且须为大写取值）。各白名单枚举的 `fromName`（如 `SortField`/`SortDirection`）均委托该工具；业务语义层（具体白名单取值、区间比较、错误文案）不属于此类——`parseMultiEnum` 仅提供白名单校验机制，取值仍由业务层定义。
   - `trace/`：链路追踪基础设施。`TraceIdFilter` 生成/透传 `trace_id`；`TraceIdSupport` 提供读取/生成/合法性校验工具；`MdcScope` 管理 MDC 作用域（退出时还原）；`MdcTaskDecorator` 让异步线程继承提交线程的 trace 上下文。
+  - `util/Sha256Utils`：SHA-256 摘要工具（UTF-8 编码、64 位小写 hex），供幂等 request hash 等场景复用。
   - `config/` 的 `AsyncMdcConfiguration` 定义了统一异步线程池 `exportFlowTaskExecutor`（带 `MdcTaskDecorator`），异步任务应注入该 bean 以保持 trace 链路贯穿。
   - `config/`：`WebConfig`（开发期 CORS）；`ApiWebMvcConfiguration` 用 `PathMatchConfigurer` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径（如 `/orders`），版本号集中维护。
 - `order/`：订单查询模块。`OrderController` 暴露 `GET /api/v1/orders`（分页 + 条件筛选 + 排序，契约见 `docs/order-query-design.md`；排序为 `sort_by` + `sort_order` 两个独立参数，`sort_order` 缺省用字段默认方向兜底、脱离 `sort_by` 单独出现返回 400，响应以 `sort_by`/`sort_order` 回显实际生效排序）；`OrderRequest` 为 record（snake_case 参数经 `@BindParam` 构造器绑定），`OrderService` 负责入参归一化与语义级校验后组装 `OrderQuery`（`query/` 包：`OrderQuery`/`OrderCriteria` 值对象 + `SortField` 排序白名单 + `FilterOperator` 操作符枚举）；持久化为 MyBatis 实现（`@Mapper` 接口 + `resources/mapper/OrderMapper.xml` 动态 SQL，列别名驼峰 + record 构造器自动映射）；测试数据由 `TestOrderDataSeeder` 夹具灌入 H2，确定性数据口径与 `seed-demo-data.sql` 对齐。分层为 `controller/dto/service/mapper/entity/vo/query`。
@@ -143,7 +144,7 @@ npm run test:watch
 
 当前已实现：
 - 统一响应 Envelope 与全局异常处理（含 `ApiResponseAdvice` 自动包装裸对象响应、Bean Validation 失败的 `data.field_errors` 字段级错误映射）。
-- 导出任务创建接口（`POST /api/v1/export-jobs`：DTO 跨字段校验 → `CreateExportJobCommand` 规范化 → 存在性/命中数业务校验 → 幂等键 + request hash 判重（复用/409 冲突）→ 同事务写 `export_jobs`(PENDING) 与 `outbox_events` → 202 受理，契约见 `docs/export-http-boundary-plan.md`；Outbox 暂不消费执行，筛选命中上限 `export.filter-max-rows` 可配置，默认 100000）。
+- 导出任务创建接口（`POST /api/v1/export-jobs`：DTO 跨字段校验 → `CreateExportJobCommand` 规范化 → 存在性/命中数业务校验 → 幂等键 + request hash 判重（复用/409 冲突）→ 同事务写 `export_jobs`(PENDING) 与 `outbox_events` → 202 受理，契约见 `docs/export-http-boundary-plan.md`；Outbox 暂不消费执行，筛选命中上限 `export.filter-max-rows` 可配置，默认 500000）。
 - API v1 统一路径前缀（`ApiWebMvcConfiguration` 为所有 `@RestController` 追加 `/api/v1`）。
 - `trace_id` 生成与链路透传（含异步线程 MDC 上下文传递）。
 - MySQL 数据源与 Flyway 迁移接入（`spring.datasource.*` + `spring.flyway.enabled=true`，应用启动时自动执行迁移脚本）。
@@ -166,7 +167,7 @@ npm run test:watch
 ## 补充说明
 
 - 已接入 MySQL 数据源与 Flyway：`application.yml` 配置了 `spring.datasource.url/username/password` 与 `spring.flyway.enabled=true`，启动时 Flyway 自动执行 `src/main/resources/db/migration/` 下的迁移脚本（当前已迁移至 V8，含 orders 全部导出业务列、export_jobs/outbox_events 完整表结构与订单查询索引 V8__add_order_query_indexes.sql）；`ExportFlowApplication` 已移除 `DataSourceAutoConfiguration` 排除项。启动后端前需保证本机 3306 端口 MySQL 存在 `exportflow` 库与 `exportflow/exportflow` 账号。订单查询已走真实 MyBatis（`mybatis.mapper-locations` 加载 `resources/mapper/` 下全部 XML），**真实库的 orders 表为空时接口将返回空列表**，需先用上文「演示数据生成脚本」灌入演示数据；测试上下文的 H2 数据由 `TestOrderDataSeeder` 预置，注意 `src/test/resources/application.yml` 会整体遮蔽主配置，mybatis 配置需两处同步维护。
-- 导出创建的业务配置：`export.filter-max-rows`（筛选导出命中行数上限，默认 100000，超限返回 `EXPORT_FILTER_TOO_MANY_ROWS`）；导出勾选上限 1000 由 DTO `@Size` 与 Command 防御校验共同承担。
+- 导出创建的业务配置：`export.filter-max-rows`（筛选导出命中行数上限，默认 500000，超限返回 `EXPORT_FILTER_TOO_MANY_ROWS`）；导出勾选上限 1000 由 DTO `@Size` 与 Command 防御校验共同承担。
 - 本仓库不存在 Cursor 规则（`.cursor/rules/` 或 `.cursorrules`）或 Copilot 指令（`.github/copilot-instructions.md`）。
 - 后端使用 Maven Wrapper，不要求系统预装 Maven。
 - 后端 `application.yml` 暴露了 Actuator 的 `health` 与 `info` 端点。

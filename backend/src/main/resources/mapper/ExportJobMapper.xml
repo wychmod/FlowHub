@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  导出任务 MyBatis 实现。
+
+  说明：
+  1. INSERT 省略 version 与执行态列（processed_rows/started_at 等），走数据库默认值或 NULL；
+  2. 查询列显式别名为驼峰，配合 arg-name-based-constructor-auto-mapping 按构造器参数名
+     装配 ExportJobEntity record（record 无 setter，走构造器映射）。
+-->
+<mapper namespace="com.example.exportflow.export.mapper.ExportJobMapper">
+
+    <!-- 创建导出任务（初始状态固定 PENDING，时间由应用写入）。
+         record 无 setter，不使用 useGeneratedKeys 回填主键；自增 id 由调用方按幂等键查询取回。 -->
+    <insert id="insert">
+        INSERT INTO export_jobs (
+            job_no, status, max_order_id_at_create,
+            idempotency_key, request_hash, filter_count,
+            filter_snapshot, selected_order_ids, selected_columns,
+            requested_file_name, created_at, updated_at
+        ) VALUES (
+            #{jobNo}, #{status}, #{maxOrderIdAtCreate},
+            #{idempotencyKey}, #{requestHash}, #{filterCount},
+            #{filterSnapshot}, #{selectedOrderIds}, #{selectedColumns},
+            #{requestedFileName}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <!-- 按幂等键查询（唯一约束保证至多一条）。 -->
+    <select id="selectByIdempotencyKey" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+        SELECT
+            id,
+            job_no                AS jobNo,
+            status,
+            max_order_id_at_create AS maxOrderIdAtCreate,
+            idempotency_key       AS idempotencyKey,
+            request_hash          AS requestHash,
+            filter_count          AS filterCount,
+            filter_snapshot       AS filterSnapshot,
+            selected_order_ids    AS selectedOrderIds,
+            selected_columns      AS selectedColumns,
+            requested_file_name   AS requestedFileName,
+            created_at            AS createdAt,
+            updated_at            AS updatedAt
+        FROM export_jobs
+        WHERE idempotency_key = #{idempotencyKey}
+    </select>
+</mapper>

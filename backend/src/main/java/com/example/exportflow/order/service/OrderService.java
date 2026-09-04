@@ -1,7 +1,6 @@
 package com.example.exportflow.order.service;
 
 import com.example.exportflow.common.web.error.BusinessException;
-import com.example.exportflow.common.web.error.CommonErrorCode;
 import com.example.exportflow.common.web.param.ParamUtils;
 import com.example.exportflow.order.dto.OrderPageResp;
 import com.example.exportflow.order.dto.OrderRequest;
@@ -65,13 +64,13 @@ public class OrderService {
         BigDecimal amountMin = ParamUtils.parseDecimal(request.totalAmountMin(), "total_amount_min");
         BigDecimal amountMax = ParamUtils.parseDecimal(request.totalAmountMax(), "total_amount_max");
         if (amountMin != null && amountMax != null && amountMin.compareTo(amountMax) > 0) {
-            throw validation("total_amount_min 不能大于 total_amount_max");
+            throw BusinessException.validation("total_amount_min 不能大于 total_amount_max");
         }
 
         LocalDateTime createdAtBegin = ParamUtils.parseDateTime(request.createdAtBegin(), "created_at_begin");
         LocalDateTime createdAtEnd = ParamUtils.parseDateTime(request.createdAtEnd(), "created_at_end");
         if (createdAtBegin != null && createdAtEnd != null && !createdAtBegin.isBefore(createdAtEnd)) {
-            throw validation("created_at_begin 必须早于 created_at_end");
+            throw BusinessException.validation("created_at_begin 必须早于 created_at_end");
         }
 
         OrderSort sort = OrderSort.resolve(request.sortBy(), request.sortOrder());
@@ -82,10 +81,6 @@ public class OrderService {
                 amountMin, amountMax, createdAtBegin, createdAtEnd,
                 sort.field(), sort.direction());
         return new OrderQuery(criteria, request.page(), request.pageSize());
-    }
-
-    private static BusinessException validation(String message) {
-        return new BusinessException(CommonErrorCode.VALIDATION_ERROR, message);
     }
 
     private static OrderItemVO toVO(Order order) {

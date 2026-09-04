@@ -260,7 +260,7 @@ backend/src/main/java/com/example/exportflow/
 | `EXPORT_SELECTED_EMPTY` | 勾选模式未传 ID |
 | `EXPORT_SELECTED_TOO_MANY` | 勾选 ID 超过 1000 |
 | `EXPORT_FILTER_ZERO_ROWS` | 筛选 COUNT 为 0 |
-| `EXPORT_FILTER_TOO_MANY_ROWS` | 筛选命中超过配置上限（默认 100000） |
+| `EXPORT_FILTER_TOO_MANY_ROWS` | 筛选命中超过配置上限（默认 500000） |
 | `IDEMPOTENCY_CONFLICT` | 相同 Key 但请求体不同 |
 | `IDEMPOTENCY_REUSED` | 正常复用原任务（返回原任务） |
 
@@ -623,7 +623,7 @@ EXPIRE 48h
 ```yaml
 export:
   root-dir: ${EXPORT_ROOT_DIR:./export-files}
-  max-rows: ${EXPORT_MAX_ROWS:100000}
+  max-rows: ${EXPORT_MAX_ROWS:500000}
   batch-size: ${EXPORT_BATCH_SIZE:1000}
   sxssf-window: ${EXPORT_SXSSF_WINDOW:100}
   file-retention-hours: ${EXPORT_FILE_RETENTION_HOURS:24}

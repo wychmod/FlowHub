@@ -1,7 +1,6 @@
 package com.example.exportflow.order.query;
 
 import com.example.exportflow.common.web.error.BusinessException;
-import com.example.exportflow.common.web.error.CommonErrorCode;
 import com.example.exportflow.common.web.param.ParamUtils;
 
 /**
@@ -16,26 +15,22 @@ public record OrderSort(SortField field, SortDirection direction) {
         String normalizedField = ParamUtils.trimToNull(rawField);
         String normalizedDirection = ParamUtils.trimToNull(rawDirection);
         if (normalizedField == null && normalizedDirection != null) {
-            throw validation("sort_order 不能脱离 sort_by 单独使用");
+            throw BusinessException.validation("sort_order 不能脱离 sort_by 单独使用");
         }
         if (normalizedField == null) {
             return new OrderSort(SortField.CREATED_AT, SortField.CREATED_AT.defaultDirection());
         }
         SortField field = SortField.fromName(normalizedField);
         if (field == null) {
-            throw validation("不支持的排序字段：" + normalizedField);
+            throw BusinessException.validation("不支持的排序字段：" + normalizedField);
         }
         SortDirection direction = field.defaultDirection();
         if (normalizedDirection != null) {
             direction = SortDirection.fromName(normalizedDirection);
             if (direction == null) {
-                throw validation("不支持的排序方向：" + normalizedDirection);
+                throw BusinessException.validation("不支持的排序方向：" + normalizedDirection);
             }
         }
         return new OrderSort(field, direction);
-    }
-
-    private static BusinessException validation(String message) {
-        return new BusinessException(CommonErrorCode.VALIDATION_ERROR, message);
     }
 }

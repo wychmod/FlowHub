@@ -1,7 +1,6 @@
 package com.example.exportflow.common.web.param;
 
 import com.example.exportflow.common.web.error.BusinessException;
-import com.example.exportflow.common.web.error.CommonErrorCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -94,7 +93,7 @@ public final class ParamUtils {
         try {
             return new BigDecimal(normalized);
         } catch (NumberFormatException ex) {
-            throw validation(field + " 不是合法的数值：" + normalized);
+            throw BusinessException.validation(field + " 不是合法的数值：" + normalized);
         }
     }
 
@@ -107,7 +106,7 @@ public final class ParamUtils {
         try {
             return LocalDateTime.parse(normalized, TIME_FORMATTER);
         } catch (DateTimeParseException ex) {
-            throw validation(field + " 格式不合法（应为 yyyy-MM-dd'T'HH:mm:ss[.SSS]，不含时区）：" + normalized);
+            throw BusinessException.validation(field + " 格式不合法（应为 yyyy-MM-dd'T'HH:mm:ss[.SSS]，不含时区）：" + normalized);
         }
     }
 
@@ -118,7 +117,7 @@ public final class ParamUtils {
             return null;
         }
         if (!PHONE_PATTERN.matcher(normalized).matches()) {
-            throw validation(field + " 必须为 11 位数字");
+            throw BusinessException.validation(field + " 必须为 11 位数字");
         }
         return normalized;
     }
@@ -152,13 +151,10 @@ public final class ParamUtils {
     private static List<String> validateWhitelist(List<String> values, List<String> whitelist, String field) {
         for (String value : values) {
             if (!whitelist.contains(value)) {
-                throw validation(field + " 含非法枚举值：" + value);
+                throw BusinessException.validation(field + " 含非法枚举值：" + value);
             }
         }
         return values;
     }
 
-    private static BusinessException validation(String message) {
-        return new BusinessException(CommonErrorCode.VALIDATION_ERROR, message);
-    }
 }
