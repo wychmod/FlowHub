@@ -23,4 +23,9 @@ public class BusinessException extends RuntimeException {
     public ErrorCode getErrorCode() {
         return errorCode;
     }
+
+    /** 快捷工厂：入参校验失败（VALIDATION_ERROR，HTTP 400），携带具体文案。 */
+    public static BusinessException validation(String message) {
+        return new BusinessException(CommonErrorCode.VALIDATION_ERROR, message);
+    }
 }

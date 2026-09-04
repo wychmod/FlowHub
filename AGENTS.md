@@ -10,7 +10,7 @@
 
 ## 项目概述
 
-ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化（导出快照复用待后续迭代）；订单列表页前端（筛选 + 排序 + 勾选 + 导出入口）已按 `docs/order-page-fe/` 四件套方案实现。导出进度 SSE 前端消费（混合实时状态同步：SSE 通知 + `job_version` 版本栅栏 + HTTP 校准 + 轮询降级）的设计与开发计划见 `docs/export-sse-design.md`——纯前端交付计划（`useExportEvents` + 导出任务页），所有未实现的后端依赖（创建接口/状态机执行器/SSE 端点/列表真实化等）统一列为前置条件管理，实现蓝本为参考项目 project-export-flow 的 `useExportEvents`。
+ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化；订单列表页前端（筛选 + 排序 + 勾选 + 导出入口）已按 `docs/order-page-fe/` 四件套方案实现；导出创建接口（`POST /api/v1/export-jobs`，DTO 校验 → Command 规范化 → 业务校验 → 幂等 → 同事务写 export_jobs/outbox_events → 202 受理）已按 `docs/export-http-boundary-plan.md` 实现，Outbox 事件暂不消费执行。导出进度 SSE 前端消费（混合实时状态同步：SSE 通知 + `job_version` 版本栅栏 + HTTP 校准 + 轮询降级）的设计与开发计划见 `docs/export-sse-design.md`——纯前端交付计划（`useExportEvents` + 导出任务页），所有未实现的后端依赖（状态机执行器/SSE 端点/列表真实化等）统一列为前置条件管理，实现蓝本为参考项目 project-export-flow 的 `useExportEvents`。
 
 - **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Flyway + MySQL、Maven（已内置 Wrapper）。
 - **前端**：React 18、TypeScript、Vite 6、antd 6、@tanstack/react-query 5、dayjs。
@@ -80,7 +80,8 @@ npm run test:watch
 - 前端页面：http://localhost:5174
 - 健康检查：http://localhost:8080/actuator/health
 - 订单接口：http://localhost:8080/api/v1/orders?page=1&page_size=20
-- 导出任务接口（占位）：http://localhost:8080/api/v1/export-jobs
+- 导出任务列表接口（占位）：http://localhost:8080/api/v1/export-jobs
+- 导出任务创建接口：`POST /api/v1/export-jobs`（需 `Idempotency-Key` 头与 JSON 请求体，契约见 be-td.md 4.5）
 
 ## 架构说明
 
@@ -91,13 +92,13 @@ npm run test:watch
 - `common/web/`：被所有业务模块复用的 Web 层基础设施。
   - `api/ApiResponse`：统一响应 Envelope `{code, message, data, trace_id}`，字段使用 `snake_case`；`ApiV1` 为控制器版本命名空间标记注解。
   - `api/ApiResponseAdvice`：`ResponseBodyAdvice`，对返回裸对象的 `@RestController` 自动包装为统一 Envelope 并回写 `trace_id` 响应头；已包装响应、`Resource`/SSE/流式响应以及标注 `@RawResponse`（`api/RawResponse`）的接口按原样返回，避免二次包装。
-  - `error/`：`ErrorCode`（HTTP 状态映射）、`BusinessException`、`GlobalExceptionHandler`，将异常统一转换为错误 Envelope。
+  - `error/`：`ErrorCode`（HTTP 状态映射）、`BusinessException`、`GlobalExceptionHandler`，将异常统一转换为错误 Envelope；Bean Validation 失败（`BindException`/`MethodArgumentNotValidException`/`ConstraintViolationException`）在 `data.field_errors` 输出「字段路径 → 文案」对象映射（载体 `FieldErrorData`，与前端 `ApiError.fieldErrors` 结构一致，键为 Java 属性路径），`HttpMessageNotReadableException` 统一转 400 `VALIDATION_ERROR`；`ApiResponse.failure` 有携带 data 的三参重载。业务模块错误码（如 `export/error/ExportErrorCode`）在各自模块内实现 `ErrorCode` 接口，不进 `common/`。
   - `param/ParamUtils`：HTTP 入参归一化与解析公共工具（空值契约的代码化）：归一化类 `trimToNull`（null/空串/纯空白统一折叠为 null）、`splitMultiValue`（逗号多值拆分 + trim + 过滤空 token + 去重，空结果视为未传）、`enumFromName`（枚举常量名大小写不敏感解析，未识别返回 null 由调用方决定报错），失败由调用方决定报错方式；解析类 `parseDecimal`/`parseDateTime`/`parsePhone`/`parseMultiEnum`（数值/时间/手机号/多值枚举解析，null/空白返回 null 或空列表，非法统一抛 VALIDATION_ERROR 400，文案含字段名；`parseMultiEnum` 的 whitelist 由调用方注入且须为大写取值）。各白名单枚举的 `fromName`（如 `SortField`/`SortDirection`）均委托该工具；业务语义层（具体白名单取值、区间比较、错误文案）不属于此类——`parseMultiEnum` 仅提供白名单校验机制，取值仍由业务层定义。
   - `trace/`：链路追踪基础设施。`TraceIdFilter` 生成/透传 `trace_id`；`TraceIdSupport` 提供读取/生成/合法性校验工具；`MdcScope` 管理 MDC 作用域（退出时还原）；`MdcTaskDecorator` 让异步线程继承提交线程的 trace 上下文。
   - `config/` 的 `AsyncMdcConfiguration` 定义了统一异步线程池 `exportFlowTaskExecutor`（带 `MdcTaskDecorator`），异步任务应注入该 bean 以保持 trace 链路贯穿。
   - `config/`：`WebConfig`（开发期 CORS）；`ApiWebMvcConfiguration` 用 `PathMatchConfigurer` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径（如 `/orders`），版本号集中维护。
 - `order/`：订单查询模块。`OrderController` 暴露 `GET /api/v1/orders`（分页 + 条件筛选 + 排序，契约见 `docs/order-query-design.md`；排序为 `sort_by` + `sort_order` 两个独立参数，`sort_order` 缺省用字段默认方向兜底、脱离 `sort_by` 单独出现返回 400，响应以 `sort_by`/`sort_order` 回显实际生效排序）；`OrderRequest` 为 record（snake_case 参数经 `@BindParam` 构造器绑定），`OrderService` 负责入参归一化与语义级校验后组装 `OrderQuery`（`query/` 包：`OrderQuery`/`OrderCriteria` 值对象 + `SortField` 排序白名单 + `FilterOperator` 操作符枚举）；持久化为 MyBatis 实现（`@Mapper` 接口 + `resources/mapper/OrderMapper.xml` 动态 SQL，列别名驼峰 + record 构造器自动映射）；测试数据由 `TestOrderDataSeeder` 夹具灌入 H2，确定性数据口径与 `seed-demo-data.sql` 对齐。分层为 `controller/dto/service/mapper/entity/vo/query`。
-- `export/`：导出任务模块骨架。`ExportJobController` 暴露 `GET /api/v1/export-jobs`；`ExportJobService` 目前仅返回空列表占位。
+- `export/`：导出任务模块。`ExportJobController` 暴露 `POST /api/v1/export-jobs`（创建入口）与 `GET /api/v1/export-jobs`（空列表占位）。创建链路（契约见 be-td.md 4.5 与 `docs/export-http-boundary-plan.md`）：`dto/` 三件套（`CreateExportJobRequest`/`ExportSelectionRequest`/`ExportFilterSnapshotRequest`，record + JSON `@JsonProperty` snake_case 绑定，`@AssertTrue` 保证 SELECTED_IDS/FILTER 分支互斥）→ `command/`（`CreateExportJobCommand.from` 规范化：ID 剔空去重排序、`ExportColumn` 9 列白名单校验并按白名单序输出、`file_name` 清理路径分隔符等非法字符、FILTER 快照解析为 `OrderCriteria`（复用 `OrderFilterWhitelist`/`OrderSort`/`ParamUtils`，excluded_order_ids 归一进 `OrderCriteria.excludedIds`））→ `service/`（幂等键查询命中时比较 request hash（规范化 Command 的 SHA-256）：相同复用原任务、不同 409 `IDEMPOTENCY_CONFLICT`；业务校验用 `OrderMapper.countByCriteria`（勾选 0 行 `EXPORT_SELECTION_EMPTY`、筛选 0 行 `EXPORT_FILTER_ZERO_ROWS`、超 `export.filter-max-rows` 上限 `EXPORT_FILTER_TOO_MANY_ROWS`）；`@Transactional` 同事务 INSERT `export_jobs`(PENDING) + `outbox_events`（payload 含 job_id/job_no/request_snapshot/columns/file_name/trace_id），并发撞幂等唯一键降级为复用/冲突判定）→ 202 + `vo/ExportJobAcceptedVO`。错误码在 `error/ExportErrorCode`；mapper 为 `ExportJobMapper`/`OutboxEventMapper`（record 无 setter，INSERT 不用 useGeneratedKeys，job_id 由唯一幂等键查询取回）。Outbox 暂不消费执行。
 
 所有 JSON 接口均返回统一 Envelope。参数校验失败返回 HTTP 400，`code` 为 `"VALIDATION_ERROR"`。控制器采用构造器注入，并对查询参数使用 `@Validated` 校验。
 
@@ -111,7 +112,7 @@ npm run test:watch
 4. **注解排版横竖以「单行能否放下」为界**：判据是「全部注解 + 目标声明」写在同一行是否会折行。
    - **横版**：注解均为无属性的标记注解（`@Valid`、`@ModelAttribute`、`@GetMapping` 等），叠加后单行放得下，与目标声明同行书写，如 `listOrders(@Valid @ModelAttribute OrderRequest request)`；
    - **竖排**：注解带属性（`@BindParam("xxx")`、`@Min(value = 1, message = "...")`、`@RequestParam(defaultValue = "1")` 等），或横排将被迫折行——此时每个注解独占一行，目标类型声明另起一行收尾。
-   禁止把放得下的短注解也竖排（过度竖排），也禁止把超宽注解挤在同一行导致折行错位。多字段 record 头部按业务维度用 `// ==== 分组名 ====` 注释 + 空行分段。排版基准示例：横版见 `order/controller/OrderController.java`，竖排见 `order/dto/OrderRequest.java`（`@BindParam` + Bean Validation 竖排、分页/筛选/排序三段分组）与 `export/controller/ExportJobController.java`（带属性注解竖排）。
+   禁止把放得下的短注解也竖排（过度竖排），也禁止把超宽注解挤在同一行导致折行错位。多字段 record 头部按业务维度用 `// ==== 分组名 ====` 注释 + 空行分段。排版基准示例：横版见 `order/controller/OrderController.java`，竖排见 `order/dto/OrderRequest.java`（`@BindParam` + Bean Validation 竖排、分页/筛选/排序三段分组）。
 5. **优先复用公共工具类，杜绝重复造轮子**：编写归一化、解析、格式转换等通用逻辑前，**必须先检查 `common/web/` 下是否已有同等能力的工具类**（如 `param/ParamUtils`），有则直接复用，禁止在业务类中私有重写；确无现成实现、且该逻辑与具体业务无关并预计存在第二个消费方（如导出模块复用）时，应直接沉淀为 `common/web/` 下的公共工具类并补充单测，而非私有在业务 Service 内。反例警示：`trimToNull` 曾私有在 `OrderService`，已抽取为 `ParamUtils` 并让 `SortField.fromName`/`SortDirection.fromName` 同步委托。
 6. **注释精简，只说签名看不出来的事**：类 javadoc 1-3 行说明职责即可；方法 javadoc 原则上 1 行说明功能；`@param`/`@return` 仅在参数含义、取值约束或返回值语义无法从签名自明时才写，且每个 1 行以内。**禁止**：长篇复述设计文档内容（契约细节以 docs/ 为准，注释留引用即可）、解释历史改动过程、为方法体只有一两行的简单方法写多行 javadoc。仅当存在签名无法表达的**关键设计决策或边界约束**（如「BigDecimal 必须用 compareTo」「NULL 视为最小值与 MySQL 对齐」）时才额外说明。排版基准示例：`common/web/param/ParamUtils.java`。
 
@@ -141,7 +142,8 @@ npm run test:watch
 ## 已实现 vs. 计划实现
 
 当前已实现：
-- 统一响应 Envelope 与全局异常处理（含 `ApiResponseAdvice` 自动包装裸对象响应）。
+- 统一响应 Envelope 与全局异常处理（含 `ApiResponseAdvice` 自动包装裸对象响应、Bean Validation 失败的 `data.field_errors` 字段级错误映射）。
+- 导出任务创建接口（`POST /api/v1/export-jobs`：DTO 跨字段校验 → `CreateExportJobCommand` 规范化 → 存在性/命中数业务校验 → 幂等键 + request hash 判重（复用/409 冲突）→ 同事务写 `export_jobs`(PENDING) 与 `outbox_events` → 202 受理，契约见 `docs/export-http-boundary-plan.md`；Outbox 暂不消费执行，筛选命中上限 `export.filter-max-rows` 可配置，默认 100000）。
 - API v1 统一路径前缀（`ApiWebMvcConfiguration` 为所有 `@RestController` 追加 `/api/v1`）。
 - `trace_id` 生成与链路透传（含异步线程 MDC 上下文传递）。
 - MySQL 数据源与 Flyway 迁移接入（`spring.datasource.*` + `spring.flyway.enabled=true`，应用启动时自动执行迁移脚本）。
@@ -152,10 +154,10 @@ npm run test:watch
 - 前端 API 防腐层：`requestJson` 合法 Envelope 结构校验（2xx 非 Envelope 抛 `Invalid API envelope`）与统一错误转换（`ApiError` 携带 message/code/status/traceId/fieldErrors）；文件下载协议工具 `api/download.ts`（`parseBlobError`/`filenameFromDisposition`/`saveBlob`，fe-td.md 7）与业务语言下载接口 `downloadExportJob`（后端下载接口就绪前调用必然失败，走统一错误提示）。
 
 设计文档中规划但尚未实现：
-- 导出任务创建接口（后端）：对 `OrderCriteria` 查询契约的 request snapshot 复用（「勾选导出」经 `ids` 字段精确取数，见 `docs/order-query-design.md` 第八节第 9 步）；前端创建入口已按 be-td.md 4.5 契约实现，联调待后端就绪（契约字段分歧处置见 `docs/order-page-fe/plan.md` 风险节）。
-- RabbitMQ、Redis、Outbox 事务发件箱模式。
+- Outbox 分发器 + RabbitMQ 消费与导出任务状态机执行器（创建接口已同事务落库 `outbox_events`，`EXPORT_JOB_CREATED` 事件暂无人消费；`OrderCriteria` 快照重放与 `ids` 精确取数的查询契约已就绪，见 `docs/order-query-design.md` 第八节第 9 步）。
+- Redis（幂等缓存、进度缓存与状态缓存）。
 - Apache POI SXSSF 流式 Excel 生成。
-- 导出任务重试、下载、SSE 进度推送与文件过期清理。
+- 导出任务详情/重试、下载、SSE 进度推送与文件过期清理。
 - 前端导出任务页本体（列表/进度/下载）、筛选条件 URL 同步与路由。
 
 新增功能时，应保持后端各业务模块垂直自治（`order/` 或 `export/` 下自包含 `controller/dto/service/mapper/entity/vo`），横切 Web 能力只放在 `common/web/`。
@@ -163,7 +165,8 @@ npm run test:watch
 
 ## 补充说明
 
-- 已接入 MySQL 数据源与 Flyway：`application.yml` 配置了 `spring.datasource.url/username/password` 与 `spring.flyway.enabled=true`，启动时 Flyway 自动执行 `src/main/resources/db/migration/` 下的迁移脚本（当前已迁移至 V8，含 orders 全部导出业务列、export_jobs/outbox_events 完整表结构与订单查询索引 V8__add_order_query_indexes.sql）；`ExportFlowApplication` 已移除 `DataSourceAutoConfiguration` 排除项。启动后端前需保证本机 3306 端口 MySQL 存在 `exportflow` 库与 `exportflow/exportflow` 账号。订单查询已走真实 MyBatis（`mybatis.mapper-locations` 加载 `resources/mapper/OrderMapper.xml`），**真实库的 orders 表为空时接口将返回空列表**，需先用上文「演示数据生成脚本」灌入演示数据；测试上下文的 H2 数据由 `TestOrderDataSeeder` 预置，注意 `src/test/resources/application.yml` 会整体遮蔽主配置，mybatis 配置需两处同步维护。
+- 已接入 MySQL 数据源与 Flyway：`application.yml` 配置了 `spring.datasource.url/username/password` 与 `spring.flyway.enabled=true`，启动时 Flyway 自动执行 `src/main/resources/db/migration/` 下的迁移脚本（当前已迁移至 V8，含 orders 全部导出业务列、export_jobs/outbox_events 完整表结构与订单查询索引 V8__add_order_query_indexes.sql）；`ExportFlowApplication` 已移除 `DataSourceAutoConfiguration` 排除项。启动后端前需保证本机 3306 端口 MySQL 存在 `exportflow` 库与 `exportflow/exportflow` 账号。订单查询已走真实 MyBatis（`mybatis.mapper-locations` 加载 `resources/mapper/` 下全部 XML），**真实库的 orders 表为空时接口将返回空列表**，需先用上文「演示数据生成脚本」灌入演示数据；测试上下文的 H2 数据由 `TestOrderDataSeeder` 预置，注意 `src/test/resources/application.yml` 会整体遮蔽主配置，mybatis 配置需两处同步维护。
+- 导出创建的业务配置：`export.filter-max-rows`（筛选导出命中行数上限，默认 100000，超限返回 `EXPORT_FILTER_TOO_MANY_ROWS`）；导出勾选上限 1000 由 DTO `@Size` 与 Command 防御校验共同承担。
 - 本仓库不存在 Cursor 规则（`.cursor/rules/` 或 `.cursorrules`）或 Copilot 指令（`.github/copilot-instructions.md`）。
 - 后端使用 Maven Wrapper，不要求系统预装 Maven。
 - 后端 `application.yml` 暴露了 Actuator 的 `health` 与 `info` 端点。

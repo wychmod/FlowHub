@@ -43,7 +43,8 @@ npm run dev
 | 健康检查 | http://localhost:8080/actuator/health |
 | 订单接口（分页） | http://localhost:8080/api/v1/orders?page=1&page_size=20 |
 | 订单接口（筛选 + 排序） | http://localhost:8080/api/v1/orders?order_status=PAID,SHIPPED&total_amount_min=100&sort=total_amount,desc |
-| 任务接口（空占位） | http://localhost:8080/api/v1/export-jobs |
+| 任务列表接口（空占位） | http://localhost:8080/api/v1/export-jobs |
+| 任务创建接口（POST，契约见 be-td.md 4.5） | `POST /api/v1/export-jobs` + `Idempotency-Key` 头，202 受理（Outbox 落库，暂不消费执行） |
 
 后端测试：`cd backend && .\mvnw.cmd test`；前端构建检查：`cd frontend && npm run build`。
 
@@ -81,11 +82,15 @@ export-flow/
 │       │   ├── mapper/        #   OrderMapper（@Mapper，SQL 见 resources/mapper/OrderMapper.xml）+ InMemoryOrderMapperImpl（行为基准，非运行时）
 │       │   ├── entity/        #   Order 实体（record）
 │       │   └── vo/            #   列表行视图对象
-│       └── export/            # 导出任务业务模块
-│           ├── controller/    #   GET /api/v1/export-jobs（空列表占位）
-│           ├── dto/           #   分页响应 DTO
-│           ├── service/       #   占位实现
-│           └── vo/            #   列表行视图对象
+│       └── export/            # 导出任务业务模块（自包含 controller/dto/service/mapper/entity/vo/command/error）
+│           ├── controller/    #   POST /api/v1/export-jobs（创建，202 受理）+ GET（空列表占位）
+│           ├── dto/           #   创建请求三件套（JSON 绑定 + 跨字段校验）/ 分页响应 DTO
+│           ├── command/       #   CreateExportJobCommand 规范化命令 + ExportColumn 列白名单 + 模式枚举
+│           ├── service/       #   幂等判断 + 业务校验 + 同事务写 export_jobs/outbox_events
+│           ├── error/         #   ExportErrorCode 业务错误码（列白名单/选择空/筛选零行/幂等冲突等）
+│           ├── mapper/        #   ExportJobMapper/OutboxEventMapper（@Mapper，SQL 见 resources/mapper/*.xml）
+│           ├── entity/        #   ExportJobEntity/OutboxEventEntity（record）
+│           └── vo/            #   受理结果 ExportJobAcceptedVO / 列表行视图对象
 └── frontend/                  # Vite + React 前端
     └── src/
         ├── main.tsx           # 入口（react-query、antd 中文环境 + 全局主题 token）
@@ -110,8 +115,9 @@ export-flow/
 - **统一响应 Envelope**：所有 JSON 接口返回 `{code, message, data, trace_id}`，字段风格为 snake_case（对齐 be-td.md 4.2/4.3 示例）；`ApiResponseAdvice` 将控制器返回的裸对象自动包装为 Envelope，标注 `@RawResponse` 或返回 `Resource`/SSE/流式的接口保持原生响应。
 - **API v1 统一前缀**：`ApiWebMvcConfiguration` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径，版本号集中维护。
 - **trace_id 链路**：`TraceIdSupport` + `MdcScope` 为每个请求生成/透传 trace_id，写入 MDC（日志可打印）、响应头 `X-Trace-Id` 与响应体；`MdcTaskDecorator` 使异步线程池（`exportFlowTaskExecutor`）继承请求的 trace_id，贯穿异步链路。
-- **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0`、非法枚举值、区间颠倒等可复现）。
+- **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0`、非法枚举值、区间颠倒等可复现）；请求体 Bean Validation 失败时 Envelope 的 `data.field_errors` 输出「字段路径 → 文案」对象映射（`GlobalExceptionHandler` + `FieldErrorData`）。
 - **订单条件查询**：状态/渠道/币种多值筛选、姓名模糊、订单号前缀、手机号精确、金额与时间区间、排序白名单（`sort=total_amount,desc`），全契约见 [docs/order-query-design.md](docs/order-query-design.md)；入参 record + `@BindParam` 构造器绑定，各层显式空值防御。
+- **导出任务创建接口**：`POST /api/v1/export-jobs`（`Idempotency-Key` 头 + selection 勾选/筛选判别联合 + 9 列白名单，契约见 be-td.md 4.5 与 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)）——DTO 跨字段校验 → Command 规范化（ID 去重排序/列白名单重排/文件名清理/筛选快照转 `OrderCriteria`）→ 业务校验（存在性、筛选命中 0 行/超上限）→ 幂等判断（request hash SHA-256，相同复用/不同 409）→ 同事务写 `export_jobs`(PENDING) + `outbox_events`，成功返回 202 + `{job_id, job_no, status, total_rows}`。Outbox 暂不消费执行（异步闭环为后续迭代），筛选命中上限可经 `export.filter-max-rows` 配置（默认 100000）。
 - **前端数据流**：`requestJson` 统一解析 Envelope（2xx 非 Envelope 抛 `Invalid API envelope`，错误统一抛 `ApiError`，携带 message/code/status/traceId/fieldErrors）→ react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
 - **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式，按 be-td.md 4.5 契约先行，后端创建接口未实现前失败走统一错误提示）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
 - **前端界面主题与防抖动**：antd theme token 定制（深色 Sider 品牌区 + 白色顶栏动态页题 + Card 分区布局）；表格启用固定列宽（`tableLayout: fixed`）、固定表体高度（`scroll.y` 内部滚动）与 `scrollbar-gutter: stable` 滚动条占位，配合 react-query `placeholderData: keepPreviousData` 平滑过渡，翻页/排序/筛选时页面零抖动。
@@ -139,7 +145,10 @@ VITE_API_BASE_URL=http://localhost:8080
 
 按 TD 文档分模块推进，每个迭代保持「后端接口 + 前端页面」可联调：
 
-1. 导出任务对订单查询契约的复用：创建导出任务时以 `OrderCriteria` 做 request snapshot（筛选导出），「勾选导出」经 `ids` 字段精确取数（[docs/order-query-design.md](docs/order-query-design.md) 第八节第 9 步；查询契约、排序与 MyBatis 持久化已实现）。
-2. 导出任务闭环：创建/详情/重试/下载接口、状态机、Outbox + RabbitMQ（be-td.md 4.5-4.10、6）。
+HTTP 请求边界补全计划见 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)。
+持久层补全计划见 [docs/persistence-domain-plan.md](docs/persistence-domain-plan.md)。
+
+1. 导出任务对订单查询契约的复用：创建导出任务时以 `OrderCriteria` 做 request snapshot（筛选导出），「勾选导出」经 `ids` 字段精确取数（[docs/order-query-design.md](docs/order-query-design.md) 第八节第 9 步；**创建入口已实现**，见 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)）。
+2. 导出任务闭环：Outbox 分发 + RabbitMQ 消费、SXSSF Excel 生成、状态机执行器、详情/重试/下载接口（be-td.md 4.6-4.10、6-9；创建接口与 Job/Outbox 同事务落库已就绪）。
 3. 进度推送前端消费：SSE `job.progress` 事件消费 + `useExportEvents` + 轮询降级（be-td.md 10、fe-td.md 6；纯前端开发计划见 [docs/export-sse-design.md](docs/export-sse-design.md)，未实现的后端依赖一律列为前置条件）。
 4. 前端任务中心：导出任务列表、进度展示（SSE + 轮询降级）、下载与重试入口（fe-td.md 6-8；订单页筛选、勾选与导出入口已实现）。
