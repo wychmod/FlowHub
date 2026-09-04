@@ -8,9 +8,9 @@ import com.example.exportflow.order.dto.OrderRequest;
 import com.example.exportflow.order.entity.Order;
 import com.example.exportflow.order.mapper.OrderMapper;
 import com.example.exportflow.order.query.OrderCriteria;
+import com.example.exportflow.order.query.OrderFilterWhitelist;
 import com.example.exportflow.order.query.OrderQuery;
-import com.example.exportflow.order.query.SortDirection;
-import com.example.exportflow.order.query.SortField;
+import com.example.exportflow.order.query.OrderSort;
 import com.example.exportflow.order.vo.OrderItemVO;
 import org.springframework.stereotype.Service;
 
@@ -25,11 +25,6 @@ import java.util.Objects;
  */
 @Service
 public class OrderService {
-
-    private static final List<String> STATUS_WHITELIST =
-            List.of("PENDING", "PAID", "SHIPPED", "COMPLETED", "CANCELED");
-    private static final List<String> CHANNEL_WHITELIST = List.of("WEB", "APP", "STORE", "PARTNER");
-    private static final List<String> CURRENCY_WHITELIST = List.of("CNY", "USD", "EUR", "HKD");
 
     private final OrderMapper orderMapper;
 
@@ -56,10 +51,12 @@ public class OrderService {
 
     /** 请求 DTO → 查询值对象。 */
     private OrderQuery toQuery(OrderRequest request) {
-        List<String> statuses = ParamUtils.parseMultiEnum(request.orderStatus(), STATUS_WHITELIST, "order_status");
+        List<String> statuses = ParamUtils.parseMultiEnum(
+                request.orderStatus(), OrderFilterWhitelist.STATUSES, "order_status");
         List<String> salesChannels = ParamUtils.parseMultiEnum(
-                request.salesChannel(), CHANNEL_WHITELIST, "sales_channel");
-        List<String> currencies = ParamUtils.parseMultiEnum(request.currency(), CURRENCY_WHITELIST, "currency");
+                request.salesChannel(), OrderFilterWhitelist.SALES_CHANNELS, "sales_channel");
+        List<String> currencies = ParamUtils.parseMultiEnum(
+                request.currency(), OrderFilterWhitelist.CURRENCIES, "currency");
 
         String customerName = ParamUtils.trimToNull(request.customerName());
         String orderNo = ParamUtils.trimToNull(request.orderNo());
@@ -77,44 +74,14 @@ public class OrderService {
             throw validation("created_at_begin 必须早于 created_at_end");
         }
 
-        SortSpec sort = parseSort(request.sortBy(), request.sortOrder());
+        OrderSort sort = OrderSort.resolve(request.sortBy(), request.sortOrder());
 
         OrderCriteria criteria = new OrderCriteria(
-                List.of(), statuses, salesChannels, currencies,
+                List.of(), List.of(), statuses, salesChannels, currencies,
                 customerName, orderNo, customerPhone,
                 amountMin, amountMax, createdAtBegin, createdAtEnd,
                 sort.field(), sort.direction());
         return new OrderQuery(criteria, request.page(), request.pageSize());
-    }
-
-    /**
-     * 排序解析：均缺省用 created_at+desc；只传 sort_by 用字段默认方向；
-     * 只传 sort_order 抛 400。
-     */
-    private static SortSpec parseSort(String rawField, String rawDirection) {
-        String normalizedField = ParamUtils.trimToNull(rawField);
-        String normalizedDirection = ParamUtils.trimToNull(rawDirection);
-        if (normalizedField == null && normalizedDirection != null) {
-            throw validation("sort_order 不能脱离 sort_by 单独使用");
-        }
-        if (normalizedField == null) {
-            return new SortSpec(SortField.CREATED_AT, SortField.CREATED_AT.defaultDirection());
-        }
-        SortField field = SortField.fromName(normalizedField);
-        if (field == null) {
-            throw validation("不支持的排序字段：" + normalizedField);
-        }
-        SortDirection direction = field.defaultDirection();
-        if (normalizedDirection != null) {
-            direction = SortDirection.fromName(normalizedDirection);
-            if (direction == null) {
-                throw validation("不支持的排序方向：" + normalizedDirection);
-            }
-        }
-        return new SortSpec(field, direction);
-    }
-
-    private record SortSpec(SortField field, SortDirection direction) {
     }
 
     private static BusinessException validation(String message) {

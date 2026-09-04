@@ -20,6 +20,10 @@
                 AND id IN
                 <foreach collection="criteria.ids" item="item" open="(" separator="," close=")">#{item}</foreach>
             </if>
+            <if test="criteria.excludedIds != null and criteria.excludedIds.size() > 0">
+                AND id NOT IN
+                <foreach collection="criteria.excludedIds" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </if>
             <if test="criteria.statuses != null and criteria.statuses.size() > 0">
                 AND order_status IN
                 <foreach collection="criteria.statuses" item="item" open="(" separator="," close=")">#{item}</foreach>
@@ -56,11 +60,17 @@
         </where>
     </sql>
 
-    <!-- 按筛选条件计数（分页 total / total_pages）。 -->
+    <!-- 按筛选条件计数（分页 total / total_pages / 导出命中数）。 -->
     <select id="countByCriteria" resultType="long">
         SELECT COUNT(*)
         FROM orders
         <include refid="criteriaWhere"/>
+    </select>
+
+    <!-- 订单表当前最大 ID（空表 COALESCE 兜底 0），导出创建时用作一致性边界。 -->
+    <select id="selectMaxId" resultType="long">
+        SELECT COALESCE(MAX(id), 0)
+        FROM orders
     </select>
 
     <!--

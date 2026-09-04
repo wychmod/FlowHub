@@ -13,7 +13,7 @@ class OrderQueryTest {
     private static OrderCriteria anyCriteria() {
         return new OrderCriteria(
                 null, null, null, null, null, null, null,
-                null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
+                null, null, null, null, null, SortField.CREATED_AT, SortDirection.DESC);
     }
 
     @Test
