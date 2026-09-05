@@ -10,9 +10,9 @@
 
 ## 项目概述
 
-ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化；订单列表页前端（筛选 + 排序 + 勾选 + 导出入口）已按 `docs/order-page-fe/` 四件套方案实现；导出创建接口（`POST /api/v1/export-jobs`，DTO 校验 → Command 规范化 → 业务校验 → 幂等 → 同事务写 export_jobs/outbox_events → 202 受理）已按 `docs/export-http-boundary-plan.md` 实现，Outbox 事件暂不消费执行。导出进度 SSE 前端消费（混合实时状态同步：SSE 通知 + `job_version` 版本栅栏 + HTTP 校准 + 轮询降级）的设计与开发计划见 `docs/export-sse-design.md`——纯前端交付计划（`useExportEvents` + 导出任务页），所有未实现的后端依赖（状态机执行器/SSE 端点/列表真实化等）统一列为前置条件管理，实现蓝本为参考项目 project-export-flow 的 `useExportEvents`。
+ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。完整架构设计（Outbox + RabbitMQ + Redis + SSE + SXSSF 流式 Excel）记录在 `docs/prd.md`、`docs/be-td.md`、`docs/fe-td.md` 中，尚未实现。订单查询能力（条件筛选 + 排序）已按 `docs/order-query-design.md` 的定稿设计实现并接入真实 MyBatis + MySQL 持久化；订单列表页前端（筛选 + 排序 + 勾选 + 导出入口）已按 `docs/order-page-fe/` 四件套方案实现；导出创建接口（`POST /api/v1/export-jobs`，DTO 校验 → Command 规范化 → 业务校验 → 幂等 → 同事务写 export_jobs/outbox_events → 202 受理）已按 `docs/export-http-boundary-plan.md` 实现；Outbox 可靠投递管道（`export/mq/`：分发器定时扫描 + Publisher Confirm 闭环 + 至少一次投递，见 `docs/export-outbox-reliable-delivery-notes.md`）已实现，消息暂无消费者。导出进度 SSE 前端消费（混合实时状态同步：SSE 通知 + `job_version` 版本栅栏 + HTTP 校准 + 轮询降级）的设计与开发计划见 `docs/export-sse-design.md`——纯前端交付计划（`useExportEvents` + 导出任务页），所有未实现的后端依赖（状态机执行器/SSE 端点/列表真实化等）统一列为前置条件管理，实现蓝本为参考项目 project-export-flow 的 `useExportEvents`。
 
-- **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Flyway + MySQL、Maven（已内置 Wrapper）。
+- **后端**：Java 21、Spring Boot 3.3.2、MyBatis（`mybatis-spring-boot-starter` 3.0.3）、Flyway + MySQL、RabbitMQ（`spring-boot-starter-amqp`，发布确认闭环）、Maven（已内置 Wrapper）。
 - **前端**：React 18、TypeScript、Vite 6、antd 6、@tanstack/react-query 5、dayjs。
 - **端口约定**：后端 `8080`，前端 `5174`。
 
@@ -20,7 +20,7 @@ ExportFlow 是一个企业级异步 Excel 导出中心的教学/演示项目。�
 
 ### 一键启动
 
-在 Windows 环境下，双击 `backend/scripts/start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。**启动后端前需先启动本机 3306 端口的 MySQL（存在 `exportflow` 库与 `exportflow/exportflow` 账号）**，否则 Flyway/数据源初始化会失败。
+在 Windows 环境下，双击 `backend/scripts/start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。**启动后端前需先启动本机 3306 端口的 MySQL（存在 `exportflow` 库与 `exportflow/exportflow` 账号）**，否则 Flyway/数据源初始化会失败。RabbitMQ（默认 `localhost:5672`，guest/guest）为可选前置：未启动时后端照常运行，仅 Outbox 分发器每轮记录 `outbox_publish_deferred` 日志且 `/actuator/health` 的 rabbit 组件为 DOWN，Broker 恢复后自动补发。
 
 ### 后端（`backend/`）
 
@@ -99,7 +99,8 @@ npm run test:watch
   - `config/` 的 `AsyncMdcConfiguration` 定义了统一异步线程池 `exportFlowTaskExecutor`（带 `MdcTaskDecorator`），异步任务应注入该 bean 以保持 trace 链路贯穿。
   - `config/`：`WebConfig`（开发期 CORS）；`ApiWebMvcConfiguration` 用 `PathMatchConfigurer` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径（如 `/orders`），版本号集中维护。
 - `order/`：订单查询模块。`OrderController` 暴露 `GET /api/v1/orders`（分页 + 条件筛选 + 排序，契约见 `docs/order-query-design.md`；排序为 `sort_by` + `sort_order` 两个独立参数，`sort_order` 缺省用字段默认方向兜底、脱离 `sort_by` 单独出现返回 400，响应以 `sort_by`/`sort_order` 回显实际生效排序）；`OrderRequest` 为 record（snake_case 参数经 `@BindParam` 构造器绑定），`OrderService` 负责入参归一化与语义级校验后组装 `OrderQuery`（`query/` 包：`OrderQuery`/`OrderCriteria` 值对象 + `SortField` 排序白名单 + `FilterOperator` 操作符枚举）；持久化为 MyBatis 实现（`@Mapper` 接口 + `resources/mapper/OrderMapper.xml` 动态 SQL，列别名驼峰 + record 构造器自动映射）；测试数据由 `TestOrderDataSeeder` 夹具灌入 H2，确定性数据口径与 `seed-demo-data.sql` 对齐。分层为 `controller/dto/service/mapper/entity/vo/query`。
-- `export/`：导出任务模块。`ExportJobController` 暴露 `POST /api/v1/export-jobs`（创建入口）与 `GET /api/v1/export-jobs`（空列表占位）。创建链路（契约见 be-td.md 4.5 与 `docs/export-http-boundary-plan.md`）：`dto/` 三件套（`CreateExportJobRequest`/`ExportSelectionRequest`/`ExportFilterSnapshotRequest`，record + JSON `@JsonProperty` snake_case 绑定，`@AssertTrue` 保证 SELECTED_IDS/FILTER 分支互斥）→ `command/`（`CreateExportJobCommand.from` 规范化：ID 剔空去重排序、`ExportColumn` 9 列白名单校验并按白名单序输出、`file_name` 清理路径分隔符等非法字符、FILTER 快照解析为 `OrderCriteria`（复用 `OrderFilterWhitelist`/`OrderSort`/`ParamUtils`，excluded_order_ids 归一进 `OrderCriteria.excludedIds`））→ `service/`（幂等键查询命中时比较 request hash（规范化 Command 的 SHA-256）：相同复用原任务、不同 409 `IDEMPOTENCY_CONFLICT`；业务校验用 `OrderMapper.countByCriteria`（勾选 0 行 `EXPORT_SELECTION_EMPTY`、筛选 0 行 `EXPORT_FILTER_ZERO_ROWS`、超 `export.filter-max-rows` 上限 `EXPORT_FILTER_TOO_MANY_ROWS`）；`@Transactional` 同事务 INSERT `export_jobs`(PENDING) + `outbox_events`（payload 含 job_id/job_no/request_snapshot/columns/file_name/trace_id），并发撞幂等唯一键降级为复用/冲突判定）→ 202 + `vo/ExportJobAcceptedVO`。错误码在 `error/ExportErrorCode`；mapper 为 `ExportJobMapper`/`OutboxEventMapper`（record 无 setter，INSERT 不用 useGeneratedKeys，job_id 由唯一幂等键查询取回）。Outbox 暂不消费执行。
+- `export/`：导出任务模块。`ExportJobController` 暴露 `POST /api/v1/export-jobs`（创建入口）与 `GET /api/v1/export-jobs`（空列表占位）。创建链路（契约见 be-td.md 4.5 与 `docs/export-http-boundary-plan.md`）：`dto/` 三件套（`CreateExportJobRequest`/`ExportSelectionRequest`/`ExportFilterSnapshotRequest`，record + JSON `@JsonProperty` snake_case 绑定，`@AssertTrue` 保证 SELECTED_IDS/FILTER 分支互斥）→ `command/`（`CreateExportJobCommand.from` 规范化：ID 剔空去重排序、`ExportColumn` 9 列白名单校验并按白名单序输出、`file_name` 清理路径分隔符等非法字符、FILTER 快照解析为 `OrderCriteria`（复用 `OrderFilterWhitelist`/`OrderSort`/`ParamUtils`，excluded_order_ids 归一进 `OrderCriteria.excludedIds`））→ `service/`（幂等键查询命中时比较 request hash（规范化 Command 的 SHA-256）：相同复用原任务、不同 409 `IDEMPOTENCY_CONFLICT`；业务校验用 `OrderMapper.countByCriteria`（勾选 0 行 `EXPORT_SELECTION_EMPTY`、筛选 0 行 `EXPORT_FILTER_ZERO_ROWS`、超 `export.filter-max-rows` 上限 `EXPORT_FILTER_TOO_MANY_ROWS`）；`@Transactional` 同事务 INSERT `export_jobs`(PENDING) + `outbox_events`（payload 含 job_id/job_no/request_snapshot/columns/file_name/trace_id），并发撞幂等唯一键降级为复用/冲突判定）→ 202 + `vo/ExportJobAcceptedVO`。错误码在 `error/ExportErrorCode`；mapper 为 `ExportJobMapper`/`OutboxEventMapper`（record 无 setter，INSERT 不用 useGeneratedKeys，job_id 由唯一幂等键查询取回）。
+  - `mq/`：Outbox 可靠投递管道。`RabbitConfig`（`@Configuration @EnableScheduling`）声明 durable direct 交换机 `export.job.exchange` + 业务队列 `export.job.queue`（routing key `export.job.create`，带 DLX 死信参数）+ 死信交换机/队列 `export.job.dlx`/`export.job.dlq`（DLQ 绑同一 routing key 接住原 key 死信）；`OutboxDispatcher` `@Scheduled` 定时扫描 `findUnpublished`（`published_at IS NULL`，单轮上限 100），发送最小契约消息 `ExportJobMessage`（schema_version/message_id/job_id/event_version，message_id 由 outbox 事件 id 经 `UUID.nameUUIDFromBytes` 稳定派生，Header 携带 `X-Trace-Id`），等待 Publisher Confirm——**仅 ACK 且无 Returned 才 `markPublished`（`AND published_at IS NULL` 单向回填）**；send 异常/NACK/退回/超时一律保留事件并记 `outbox_publish_deferred` 日志（至少一次投递，Job 不改状态）。配置 `export.outbox.dispatch-delay-ms`/`export.outbox.confirm-timeout-ms`（默认 5000）；`OutboxEventMapper.findUnpublished/markPublished` 的 SQL 在 `resources/mapper/OutboxEventMapper.xml`。消息暂无消费者。
 
 所有 JSON 接口均返回统一 Envelope。参数校验失败返回 HTTP 400，`code` 为 `"VALIDATION_ERROR"`。控制器采用构造器注入，并对查询参数使用 `@Validated` 校验。
 
@@ -144,7 +145,8 @@ npm run test:watch
 
 当前已实现：
 - 统一响应 Envelope 与全局异常处理（含 `ApiResponseAdvice` 自动包装裸对象响应、Bean Validation 失败的 `data.field_errors` 字段级错误映射）。
-- 导出任务创建接口（`POST /api/v1/export-jobs`：DTO 跨字段校验 → `CreateExportJobCommand` 规范化 → 存在性/命中数业务校验 → 幂等键 + request hash 判重（复用/409 冲突）→ 同事务写 `export_jobs`(PENDING) 与 `outbox_events` → 202 受理，契约见 `docs/export-http-boundary-plan.md`；Outbox 暂不消费执行，筛选命中上限 `export.filter-max-rows` 可配置，默认 500000）。
+- 导出任务创建接口（`POST /api/v1/export-jobs`：DTO 跨字段校验 → `CreateExportJobCommand` 规范化 → 存在性/命中数业务校验 → 幂等键 + request hash 判重（复用/409 冲突）→ 同事务写 `export_jobs`(PENDING) 与 `outbox_events` → 202 受理，契约见 `docs/export-http-boundary-plan.md`；筛选命中上限 `export.filter-max-rows` 可配置，默认 500000）。
+- Outbox 可靠投递管道（`export/mq/`：`RabbitConfig` 拓扑 + `OutboxDispatcher` 定时扫描发布 + `ExportJobMessage` 最小契约消息；Confirm ACK 且无 Returned 才回填 `published_at`，失败/NACK/退回/超时保留事件下轮补发并记 `outbox_publish_deferred` 日志；`spring.rabbitmq` 配置 `publisher-confirm-type: correlated` + `publisher-returns` + `template.mandatory: true`，见 `docs/export-outbox-reliable-delivery-notes.md`）。
 - API v1 统一路径前缀（`ApiWebMvcConfiguration` 为所有 `@RestController` 追加 `/api/v1`）。
 - `trace_id` 生成与链路透传（含异步线程 MDC 上下文传递）。
 - MySQL 数据源与 Flyway 迁移接入（`spring.datasource.*` + `spring.flyway.enabled=true`，应用启动时自动执行迁移脚本）。
@@ -155,7 +157,7 @@ npm run test:watch
 - 前端 API 防腐层：`requestJson` 合法 Envelope 结构校验（2xx 非 Envelope 抛 `Invalid API envelope`）与统一错误转换（`ApiError` 携带 message/code/status/traceId/fieldErrors）；文件下载协议工具 `api/download.ts`（`parseBlobError`/`filenameFromDisposition`/`saveBlob`，fe-td.md 7）与业务语言下载接口 `downloadExportJob`（后端下载接口就绪前调用必然失败，走统一错误提示）。
 
 设计文档中规划但尚未实现：
-- Outbox 分发器 + RabbitMQ 消费与导出任务状态机执行器（创建接口已同事务落库 `outbox_events`，`EXPORT_JOB_CREATED` 事件暂无人消费；`OrderCriteria` 快照重放与 `ids` 精确取数的查询契约已就绪，见 `docs/order-query-design.md` 第八节第 9 步）。
+- RabbitMQ 消费与导出任务状态机执行器（Outbox 分发器已将 `EXPORT_JOB_CREATED` 事件投递至 `export.job.queue`，暂无消费者；后续需实现 Consumer 的 `PENDING→RUNNING` 条件 UPDATE 抢占 + Attempt 创建；`OrderCriteria` 快照重放与 `ids` 精确取数的查询契约已就绪，见 `docs/order-query-design.md` 第八节第 9 步）。
 - Redis（幂等缓存、进度缓存与状态缓存）。
 - Apache POI SXSSF 流式 Excel 生成。
 - 导出任务详情/重试、下载、SSE 进度推送与文件过期清理。
@@ -168,6 +170,7 @@ npm run test:watch
 
 - 已接入 MySQL 数据源与 Flyway：`application.yml` 配置了 `spring.datasource.url/username/password` 与 `spring.flyway.enabled=true`，启动时 Flyway 自动执行 `src/main/resources/db/migration/` 下的迁移脚本（当前已迁移至 V8，含 orders 全部导出业务列、export_jobs/outbox_events 完整表结构与订单查询索引 V8__add_order_query_indexes.sql）；`ExportFlowApplication` 已移除 `DataSourceAutoConfiguration` 排除项。启动后端前需保证本机 3306 端口 MySQL 存在 `exportflow` 库与 `exportflow/exportflow` 账号。订单查询已走真实 MyBatis（`mybatis.mapper-locations` 加载 `resources/mapper/` 下全部 XML），**真实库的 orders 表为空时接口将返回空列表**，需先用上文「演示数据生成脚本」灌入演示数据；测试上下文的 H2 数据由 `TestOrderDataSeeder` 预置，注意 `src/test/resources/application.yml` 会整体遮蔽主配置，mybatis 配置需两处同步维护。
 - 导出创建的业务配置：`export.filter-max-rows`（筛选导出命中行数上限，默认 500000，超限返回 `EXPORT_FILTER_TOO_MANY_ROWS`）；导出勾选上限 1000 由 DTO `@Size` 与 Command 防御校验共同承担。
+- Outbox 分发的业务配置：`export.outbox.dispatch-delay-ms`（扫描间隔与启动首扫延迟，默认 5000，测试 yml 置大以静默调度）与 `export.outbox.confirm-timeout-ms`（单条 Confirm 等待上限，默认 5000），均走 `@Value` 默认值不落 yml；`spring.rabbitmq` 连接默认 `localhost:5672` guest/guest，RabbitMQ 未启动时应用照常运行（分发器记 `outbox_publish_deferred`，`/actuator/health` 的 rabbit 组件为 DOWN）。
 - 本仓库不存在 Cursor 规则（`.cursor/rules/` 或 `.cursorrules`）或 Copilot 指令（`.github/copilot-instructions.md`）。
 - 后端使用 Maven Wrapper，不要求系统预装 Maven。
 - 后端 `application.yml` 暴露了 Actuator 的 `health` 与 `info` 端点。

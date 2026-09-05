@@ -14,3 +14,9 @@ mybatis:
   map-underscore-to-camel-case: true
   arg-name-based-constructor-auto-mapping: true
   mapper-locations: classpath:mapper/**/*.xml
+
+# Outbox 分发调度禁用：@Scheduled 的 initialDelay 与 fixedDelay 共用该属性，置大即整体静默；
+# 分发器测试直接调用 dispatchPendingEvents()，避免上下文刷新首火扫描共享 H2 中残留的未发布事件。
+export:
+  outbox:
+    dispatch-delay-ms: 3600000

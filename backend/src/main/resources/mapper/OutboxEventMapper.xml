@@ -19,4 +19,30 @@
             #{payload}, #{traceId}, #{createdAt}
         )
     </insert>
+
+    <!-- 捞取未发布事件（published_at IS NULL 走 idx_outbox_unpublished 前缀；LIMIT 参数化，MySQL/H2 均支持）。 -->
+    <select id="findUnpublished" resultType="com.example.exportflow.export.entity.OutboxEventEntity">
+        SELECT
+            id,
+            aggregate_type AS aggregateType,
+            aggregate_id   AS aggregateId,
+            event_type     AS eventType,
+            payload,
+            trace_id       AS traceId,
+            created_at     AS createdAt
+        FROM outbox_events
+        WHERE published_at IS NULL
+          AND aggregate_type = #{aggregateType}
+          AND event_type = #{eventType}
+        ORDER BY created_at, id
+        LIMIT #{limit}
+    </select>
+
+    <!-- 标记已发布：published_at IS NULL 单向条件保证不可逆，重复调度重放安全；时间由应用侧传入。 -->
+    <update id="markPublished">
+        UPDATE outbox_events
+        SET published_at = #{publishedAt}
+        WHERE id = #{id}
+          AND published_at IS NULL
+    </update>
 </mapper>
