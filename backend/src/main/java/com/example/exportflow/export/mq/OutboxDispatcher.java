@@ -1,6 +1,7 @@
 package com.example.exportflow.export.mq;
 
 import com.example.exportflow.common.web.trace.TraceIdSupport;
+import com.example.exportflow.common.web.util.ExceptionUtils;
 import com.example.exportflow.export.entity.OutboxEventEntity;
 import com.example.exportflow.export.mapper.OutboxEventMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -66,7 +67,7 @@ public class OutboxDispatcher {
                 break;
             } catch (Exception ex) {
                 // 单条失败不阻断本轮其余事件；事件保留待下轮补发
-                logDeferred(event, resolveReason(ex));
+                logDeferred(event, ExceptionUtils.messageOrTypeName(ex));
             }
         }
     }
@@ -124,11 +125,6 @@ public class OutboxDispatcher {
             properties.setHeader(TraceIdSupport.HEADER_NAME, traceId);
         }
         return new Message(objectMapper.writeValueAsBytes(message), properties);
-    }
-
-    private static String resolveReason(Exception ex) {
-        String message = ex.getMessage();
-        return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
     }
 
     private void logDeferred(OutboxEventEntity event, String reason) {

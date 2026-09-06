@@ -10,6 +10,7 @@ import com.example.exportflow.export.dto.ExportJobPageResp;
 import com.example.exportflow.export.entity.ExportJobEntity;
 import com.example.exportflow.export.entity.OutboxEventEntity;
 import com.example.exportflow.export.error.ExportErrorCode;
+import com.example.exportflow.export.mapper.ExportJobAttemptMapper;
 import com.example.exportflow.export.mapper.ExportJobMapper;
 import com.example.exportflow.export.mapper.OutboxEventMapper;
 import com.example.exportflow.export.vo.ExportJobAcceptedVO;
@@ -17,6 +18,8 @@ import com.example.exportflow.order.mapper.OrderMapper;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -29,29 +32,44 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 导出任务服务：创建入口（幂等判断 + 业务校验 + 同事务写 export_jobs/outbox_events）与列表查询。
+ * 导出任务服务：创建入口（幂等判断 + 业务校验 + 同事务写 export_jobs/outbox_events）、列表查询，
+ * 以及执行侧状态管理（条件抢占 claimPendingJob、失败收敛 markFailed）。
  * <p>
  * 不发布 RabbitMQ 消息、不写 Redis、不生成文件——Outbox 落库成功即入口职责完成。
  */
 @Service
 public class ExportJobService {
 
+    private static final Logger log = LoggerFactory.getLogger(ExportJobService.class);
+
     private static final String STATUS_PENDING = "PENDING";
     private static final DateTimeFormatter JOB_NO_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter DEFAULT_FILE_NAME_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /** 尝试上限：达到后不再可抢占，等待人工重试（第 19 章）。 */
+    private static final int MAX_ATTEMPTS = 3;
+
+    /** 抢占时预置的租约时长（分钟）：抢占成功后执行端失联的恢复信号（第 19 章消费）。 */
+    private static final int LEASE_MINUTES = 5;
+
+    /** error_message 列宽（VARCHAR(500)），超长截断防 SQL 失败。 */
+    private static final int ERROR_MESSAGE_MAX_LENGTH = 500;
+
     private final ExportJobMapper exportJobMapper;
+    private final ExportJobAttemptMapper exportJobAttemptMapper;
     private final OutboxEventMapper outboxEventMapper;
     private final OrderMapper orderMapper;
     private final ObjectMapper objectMapper;
     private final long filterMaxRows;
 
     public ExportJobService(ExportJobMapper exportJobMapper,
+                            ExportJobAttemptMapper exportJobAttemptMapper,
                             OutboxEventMapper outboxEventMapper,
                             OrderMapper orderMapper,
                             ObjectMapper objectMapper,
                             @Value("${export.filter-max-rows:500000}") long filterMaxRows) {
         this.exportJobMapper = exportJobMapper;
+        this.exportJobAttemptMapper = exportJobAttemptMapper;
         this.outboxEventMapper = outboxEventMapper;
         this.orderMapper = orderMapper;
         this.objectMapper = objectMapper;
@@ -107,6 +125,41 @@ public class ExportJobService {
         ExportJobEntity persisted = exportJobMapper.selectByIdempotencyKey(idempotencyKey);
         outboxEventMapper.insert(outboxEvent(persisted, command));
         return toAcceptedVO(persisted);
+    }
+
+    /**
+     * 条件抢占：CAS 将 PENDING 任务置 RUNNING，并同事务插入 RUNNING Attempt（两步原子，不可拆分）。
+     *
+     * @return true = 抢占成功（Attempt 已建，调用方可执行）；false = 重复投递/已被抢占/达尝试上限，无任何副作用
+     */
+    @Transactional
+    public boolean claimPendingJob(long jobId) {
+        LocalDateTime now = LocalDateTime.now();
+        // 仅 PENDING 且未达上限可转换，受影响行数即执行权裁决；0 行时事务内无其他写，等同无副作用
+        if (exportJobMapper.claimPending(jobId, MAX_ATTEMPTS, now, now.plusMinutes(LEASE_MINUTES)) != 1) {
+            log.debug("export_job_claim_missed job_id={} trace_id={}", jobId, TraceIdSupport.currentTraceId());
+            return false;
+        }
+        // 必须与抢占同一事务：任一方向拆开都会留下脏事实（孤儿 RUNNING 或伪执行记录）
+        exportJobAttemptMapper.insertRunning(jobId, now);
+        log.info("export_job_claimed job_id={} lease_expires_at={} trace_id={}",
+                jobId, now.plusMinutes(LEASE_MINUTES), TraceIdSupport.currentTraceId());
+        return true;
+    }
+
+    /**
+     * 收敛失败：Job 与当前 RUNNING Attempt 同事务置 FAILED，回填错误与结束时间（执行服务在业务异常时调用）。
+     * <p>
+     * UPDATE 带 status='RUNNING' 单向条件，0 行 = 已被其他路径推进，保持库内既有事实。
+     */
+    @Transactional
+    public void markFailed(long jobId, String errorCode, String errorMessage) {
+        LocalDateTime now = LocalDateTime.now();
+        String message = truncateMessage(errorMessage);
+        exportJobMapper.markFailed(jobId, errorCode, message, now);
+        exportJobAttemptMapper.markFailed(jobId, errorCode, message, now);
+        log.warn("export_job_failed job_id={} error_code={} error_message={} trace_id={}",
+                jobId, errorCode, message, TraceIdSupport.currentTraceId());
     }
 
     /** 幂等命中判定：请求内容一致复用原任务，不一致返回 409 冲突。 */
@@ -182,6 +235,14 @@ public class ExportJobService {
 
     private static String defaultFileName(LocalDateTime now) {
         return "export-" + DEFAULT_FILE_NAME_TIME.format(now);
+    }
+
+    /** error_message 按列宽截断（异常信息可能超长，防 INSERT/UPDATE 失败）。 */
+    private static String truncateMessage(String message) {
+        if (message == null || message.length() <= ERROR_MESSAGE_MAX_LENGTH) {
+            return message;
+        }
+        return message.substring(0, ERROR_MESSAGE_MAX_LENGTH);
     }
 
     /** 规范化 Command 的 SHA-256 指纹（同义请求规范化结果相同 → hash 相同）。 */
