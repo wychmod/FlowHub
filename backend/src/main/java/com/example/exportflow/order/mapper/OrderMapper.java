@@ -23,7 +23,4 @@ public interface OrderMapper {
 
     /** 分页查询订单。 */
     List<Order> selectPage(OrderQuery query);
-
-    /** 订单表当前最大 ID（空表返回 0），导出创建时用作一致性边界。 */
-    long selectMaxId();
 }

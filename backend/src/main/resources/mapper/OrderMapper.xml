@@ -11,11 +11,12 @@
 -->
 <mapper namespace="com.example.exportflow.order.mapper.OrderMapper">
 
-    <!-- 筛选条件公共片段：两个语句的参数对象都以 criteria 路径暴露筛选条件
-         （countByCriteria 经 @Param("criteria")，selectPage 经 OrderQuery 的 criteria 属性），
-         因此这里统一引用 criteria.xxx。 -->
-    <sql id="criteriaWhere">
-        <where>
+    <!--
+      筛选条件公共片段（裸条件，各条件以 AND 开头）：消费方自行决定是否以 <where> 包裹。
+      三个语句的参数对象都以 criteria 路径暴露筛选条件（countByCriteria/selectPage 经自身参数，
+      导出批查 ExportOrderMapper.findBatch 跨 namespace 引用本片段），保证 WHERE 同源。
+    -->
+    <sql id="criteriaConditions">
             <if test="criteria.ids != null and criteria.ids.size() > 0">
                 AND id IN
                 <foreach collection="criteria.ids" item="item" open="(" separator="," close=")">#{item}</foreach>
@@ -57,20 +58,15 @@
             <if test="criteria.createdAtEnd != null">
                 AND created_at &lt; #{criteria.createdAtEnd}
             </if>
-        </where>
     </sql>
 
     <!-- 按筛选条件计数（分页 total / total_pages / 导出命中数）。 -->
     <select id="countByCriteria" resultType="long">
         SELECT COUNT(*)
         FROM orders
-        <include refid="criteriaWhere"/>
-    </select>
-
-    <!-- 订单表当前最大 ID（空表 COALESCE 兜底 0），导出创建时用作一致性边界。 -->
-    <select id="selectMaxId" resultType="long">
-        SELECT COALESCE(MAX(id), 0)
-        FROM orders
+        <where>
+            <include refid="criteriaConditions"/>
+        </where>
     </select>
 
     <!--
@@ -91,7 +87,9 @@
             currency,
             created_at     AS createdAt
         FROM orders
-        <include refid="criteriaWhere"/>
+        <where>
+            <include refid="criteriaConditions"/>
+        </where>
         ORDER BY ${criteria.sortField().column()} ${criteria.sortDirection().name()},
                  id ${criteria.sortDirection().name()}
         LIMIT #{pageSize} OFFSET #{offset}
