@@ -45,4 +45,35 @@
         FROM export_jobs
         WHERE idempotency_key = #{idempotencyKey}
     </select>
+
+    <!-- 条件抢占：WHERE 声明只允许从 PENDING 转换，数据库原子判断+更新，
+         受影响行数即执行权裁决（1 抢到 / 0 重复投递或已被抢占或达上限）。
+         version 递增供 SSE/HTTP 状态校准（P1 最小落地，事件发布随 SSE 设计后续接入）。 -->
+    <update id="claimPending">
+        UPDATE export_jobs
+        SET status = 'RUNNING',
+            processed_rows = 0,
+            attempt_count = attempt_count + 1,
+            started_at = #{now},
+            last_heartbeat_at = #{now},
+            lease_expires_at = #{leaseExpiresAt},
+            updated_at = #{now},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'PENDING'
+          AND attempt_count &lt; #{maxAttempts}
+    </update>
+
+    <!-- 收敛失败：status='RUNNING' 单向条件防重复收敛（终态不可再改写）。 -->
+    <update id="markFailed">
+        UPDATE export_jobs
+        SET status = 'FAILED',
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            finished_at = #{now},
+            updated_at = #{now},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
 </mapper>

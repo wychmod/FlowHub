@@ -13,6 +13,8 @@ spring:
     enabled: true
   # RabbitMQ 连接与发布确认闭环（Outbox 分发器用）：correlated confirm 使每次发送可对上确认，
   # publisher-returns + template.mandatory 使不可路由消息退回可见而非静默丢弃——ACK 且无 Returned 才算投递成功。
+  # listener 为消费端（ExportJobConsumer）参数：手动确认保留重投窗口（Ack 前崩溃消息不丢），
+  # prefetch=1 保证每个 Consumer 确认当前 delivery 前不预取更多消息；并发防双执行靠 DB 条件抢占而非此处。
   rabbitmq:
     host: localhost
     port: 5672
@@ -22,6 +24,11 @@ spring:
     publisher-returns: true
     template:
       mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+        concurrency: 2
 
 management:
   endpoints:

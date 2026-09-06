@@ -7,6 +7,13 @@ spring:
     url: jdbc:h2:mem:exportflow_test;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
     password: ""
+  # 消费监听容器不自启：测试上下文无真实 Broker，启动容器只会反复重连拖垮测试；
+  # Consumer 逻辑由测试直接方法调用验证（同 OutboxDispatcher 直接调 dispatchPendingEvents 的惯例）。
+  # 消费参数（manual/prefetch/concurrency）在主 application.yml，对不经容器的方法调用不生效，无需两处同步。
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
 
 # 注意：本文件会整体遮蔽主 application.yml（同名 classpath 资源 test-classes 优先），
 # 因此 mybatis 配置需在此重复声明，与主配置保持一致；改动时两处同步。
