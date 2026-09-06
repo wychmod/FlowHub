@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  导出任务执行尝试 MyBatis 实现。
+
+  说明：
+  1. INSERT 不回填自增主键（record 无 setter 的仓库惯例），后续更新按 job_id + status 定位；
+  2. attempt_no 用 MAX+1 子查询生成：聚合无 GROUP BY 恒返回一行，首条记录亦插出 attempt_no=1，
+     重试后不覆盖旧行（唯一索引 uk_attempt_job_no 从库层兜底）。
+-->
+<mapper namespace="com.example.exportflow.export.mapper.ExportJobAttemptMapper">
+
+    <!-- 插入 RUNNING 尝试（与抢占同一事务提交，保证状态切换与审计记录原子生效）。 -->
+    <insert id="insertRunning">
+        INSERT INTO export_job_attempts (job_id, attempt_no, status, started_at, created_at)
+        SELECT #{jobId}, COALESCE(MAX(attempt_no), 0) + 1, 'RUNNING', #{now}, #{now}
+        FROM export_job_attempts
+        WHERE job_id = #{jobId}
+    </insert>
+
+    <!-- 收敛当前 RUNNING 尝试为 FAILED：按 job_id + RUNNING 定位（同一时刻至多一条 RUNNING 尝试）。 -->
+    <update id="markFailed">
+        UPDATE export_job_attempts
+        SET status = 'FAILED',
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            finished_at = #{now}
+        WHERE job_id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+</mapper>
