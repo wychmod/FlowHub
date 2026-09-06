@@ -37,8 +37,6 @@ import java.util.UUID;
 public class ExportJobService {
 
     private static final String STATUS_PENDING = "PENDING";
-    private static final String AGGREGATE_TYPE_EXPORT_JOB = "EXPORT_JOB";
-    private static final String EVENT_TYPE_EXPORT_JOB_CREATED = "EXPORT_JOB_CREATED";
     private static final DateTimeFormatter JOB_NO_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter DEFAULT_FILE_NAME_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -149,9 +147,9 @@ public class ExportJobService {
                 TraceIdSupport.currentTraceId());
         return new OutboxEventEntity(
                 null,
-                AGGREGATE_TYPE_EXPORT_JOB,
+                OutboxEventEntity.AGGREGATE_TYPE_EXPORT_JOB,
                 job.id(),
-                EVENT_TYPE_EXPORT_JOB_CREATED,
+                OutboxEventEntity.EVENT_TYPE_EXPORT_JOB_CREATED,
                 writeJson(payload),
                 TraceIdSupport.currentTraceId(),
                 job.createdAt());
