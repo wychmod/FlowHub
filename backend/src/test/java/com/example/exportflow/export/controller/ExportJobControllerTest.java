@@ -70,10 +70,10 @@ class ExportJobControllerTest {
                 .andExpect(jsonPath("$.data.job_no").isNotEmpty())
                 .andExpect(jsonPath("$.data.job_id").isNumber());
 
-        // 同事务落库：任务 PENDING、指纹 64 位、一致性边界为种子数据最大 ID
+        // 同事务落库：任务 PENDING、指纹 64 位、一致性边界为勾选命中范围的最大 ID（3）
         assertThat(queryForLong("SELECT COUNT(*) FROM export_jobs")).isEqualTo(1L);
         assertThat(queryForString("SELECT status FROM export_jobs")).isEqualTo("PENDING");
-        assertThat(queryForLong("SELECT max_order_id_at_create FROM export_jobs")).isEqualTo(57L);
+        assertThat(queryForLong("SELECT max_order_id_at_create FROM export_jobs")).isEqualTo(3L);
         assertThat((String) queryForString("SELECT request_hash FROM export_jobs")).hasSize(64);
         // 勾选快照保存去重排序后的 ID，勾选模式下 filter_snapshot 承载含 ids 的取数条件
         assertThat(queryForString("SELECT selected_order_ids FROM export_jobs")).isEqualTo("[1,2,3]");

@@ -15,6 +15,17 @@ public interface ExportJobMapper {
     /** 插入导出任务（幂等键唯一约束兜底并发创建）。 */
     int insert(ExportJobEntity job);
 
+    /** 按主键查询任务（执行器加载快照），未命中返回 null。 */
+    ExportJobEntity selectById(
+            @Param("jobId")
+            long jobId);
+
+    /** 每批推进已处理行数（version 递增使进度变更对状态校准可见）。 */
+    int updateProcessedRows(
+            @Param("jobId") long jobId,
+            @Param("processedRows") long processedRows,
+            @Param("now") LocalDateTime now);
+
     /** 按幂等键查询任务（幂等命中复用），未命中返回 null。 */
     ExportJobEntity selectByIdempotencyKey(
             @Param("idempotencyKey")

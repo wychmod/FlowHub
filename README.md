@@ -2,7 +2,7 @@
 
 企业级异步导出中心（订单筛选 → 异步 Excel 导出 → 进度推送 → 下载）。
 
-当前仓库为按 [docs/prd.md](docs/prd.md)、[docs/be-td.md](docs/be-td.md)、[docs/fe-td.md](docs/fe-td.md) 搭建的教学/演示项目：订单条件查询（后端接口 + 前端完整列表页，含筛选、排序、勾选与导出入口）与导出消息链路（创建受理 → Outbox 可靠投递 → RabbitMQ 消费端条件抢占与 Attempt 审计，执行体为占位）已实现，Excel 生成与 SSE 进度推送在后续迭代实现。
+当前仓库为按 [docs/prd.md](docs/prd.md)、[docs/be-td.md](docs/be-td.md)、[docs/fe-td.md](docs/fe-td.md) 搭建的教学/演示项目：订单条件查询（后端接口 + 前端完整列表页，含筛选、排序、勾选与导出入口）与导出消息链路（创建受理 → Outbox 可靠投递 → RabbitMQ 消费端条件抢占与 Attempt 审计 → 执行体按任务快照 Keyset 分批读取订单）已实现，SXSSF Excel 生成、文件下载与 SSE 进度推送在后续迭代实现。
 
 ## 技术栈
 
@@ -44,7 +44,7 @@ npm run dev
 | 订单接口（分页） | http://localhost:8080/api/v1/orders?page=1&page_size=20 |
 | 订单接口（筛选 + 排序） | http://localhost:8080/api/v1/orders?order_status=PAID,SHIPPED&total_amount_min=100&sort=total_amount,desc |
 | 任务列表接口（空占位） | http://localhost:8080/api/v1/export-jobs |
-| 任务创建接口（POST，契约见 be-td.md 4.5） | `POST /api/v1/export-jobs` + `Idempotency-Key` 头，202 受理（Outbox 落库并由分发器发布至 RabbitMQ——Confirm ACK 且无 Returned 才标记已发布；消费者以条件抢占领取执行权，执行体为占位、任务将收敛为 FAILED 并留 Attempt 记录） |
+| 任务创建接口（POST，契约见 be-td.md 4.5） | `POST /api/v1/export-jobs` + `Idempotency-Key` 头，202 受理（Outbox 落库并由分发器发布至 RabbitMQ——Confirm ACK 且无 Returned 才标记已发布；消费者以条件抢占领取执行权，执行体按任务快照 Keyset 分批读取订单并推进 `processed_rows`，Excel 生成接入前任务收敛为 FAILED 并留 Attempt 记录） |
 
 后端测试：`cd backend && .\mvnw.cmd test`；前端构建检查：`cd frontend && npm run build`。
 
@@ -87,10 +87,10 @@ export-flow/
 │           ├── dto/           #   创建请求三件套（JSON 绑定 + 跨字段校验）/ 分页响应 DTO
 │           ├── command/       #   CreateExportJobCommand 规范化命令 + ExportColumn 列白名单 + 模式枚举
 │           ├── mq/            #   RabbitMQ 拓扑（RabbitConfig）+ Outbox 分发器 + 消息契约 ExportJobMessage + 消费者 ExportJobConsumer
-│           ├── service/       #   幂等判断 + 业务校验 + 同事务写 export_jobs/outbox_events + 条件抢占/失败收敛 + 执行服务壳
+│           ├── service/       #   幂等判断 + 业务校验 + 同事务写 export_jobs/outbox_events + 条件抢占/失败收敛 + Keyset 执行体
 │           ├── error/         #   ExportErrorCode 业务错误码（列白名单/选择空/筛选零行/幂等冲突等）
-│           ├── mapper/        #   ExportJobMapper/OutboxEventMapper/ExportJobAttemptMapper（@Mapper，SQL 见 resources/mapper/*.xml）
-│           ├── entity/        #   ExportJobEntity/OutboxEventEntity（record）
+│           ├── mapper/        #   ExportJobMapper/OutboxEventMapper/ExportJobAttemptMapper/ExportOrderMapper（@Mapper，SQL 见 resources/mapper/*.xml）
+│           ├── entity/        #   ExportJobEntity/OutboxEventEntity/ExportOrderRow/ExportSelectionSnapshot（record）
 │           └── vo/            #   受理结果 ExportJobAcceptedVO / 列表行视图对象
 └── frontend/                  # Vite + React 前端
     └── src/
@@ -118,9 +118,10 @@ export-flow/
 - **trace_id 链路**：`TraceIdSupport` + `MdcScope` 为每个请求生成/透传 trace_id，写入 MDC（日志可打印）、响应头 `X-Trace-Id` 与响应体；`MdcTaskDecorator` 使异步线程池（`exportFlowTaskExecutor`）继承请求的 trace_id，贯穿异步链路。
 - **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0`、非法枚举值、区间颠倒等可复现）；请求体 Bean Validation 失败时 Envelope 的 `data.field_errors` 输出「字段路径 → 文案」对象映射（`GlobalExceptionHandler` + `FieldErrorData`）。
 - **订单条件查询**：状态/渠道/币种多值筛选、姓名模糊、订单号前缀、手机号精确、金额与时间区间、排序白名单（`sort=total_amount,desc`），全契约见 [docs/order-query-design.md](docs/order-query-design.md)；入参 record + `@BindParam` 构造器绑定，各层显式空值防御。
-- **导出任务创建接口**：`POST /api/v1/export-jobs`（`Idempotency-Key` 头 + selection 勾选/筛选判别联合 + 9 列白名单，契约见 be-td.md 4.5 与 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)）——DTO 跨字段校验 → Command 规范化（ID 去重排序/列白名单重排/文件名清理/筛选快照转 `OrderCriteria`）→ 业务校验（存在性、筛选命中 0 行/超上限）→ 幂等判断（request hash SHA-256，相同复用/不同 409）→ 同事务写 `export_jobs`(PENDING) + `outbox_events`，成功返回 202 + `{job_id, job_no, status, total_rows}`。筛选命中上限可经 `export.filter-max-rows` 配置（默认 500000）。
+- **导出任务创建接口**：`POST /api/v1/export-jobs`（`Idempotency-Key` 头 + selection 勾选/筛选判别联合 + 9 列白名单，契约见 be-td.md 4.5 与 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)）——DTO 跨字段校验 → Command 规范化（ID 去重排序/列白名单重排/文件名清理/筛选快照转 `OrderCriteria`）→ 业务校验（存在性、筛选命中 0 行/超上限；`snapshotByCriteria` 单查询统计命中数与范围内最大订单 ID 作为高水位）→ 幂等判断（request hash SHA-256，相同复用/不同 409）→ 同事务写 `export_jobs`(PENDING) + `outbox_events`，成功返回 202 + `{job_id, job_no, status, total_rows}`。筛选命中上限可经 `export.filter-max-rows` 配置（默认 500000）。
 - **Outbox 可靠投递管道**：`OutboxDispatcher` 定时扫描未发布事件（`published_at IS NULL`，`export.outbox.dispatch-delay-ms` 默认 5000）→ 发送最小契约消息 `ExportJobMessage`（schema_version/message_id/job_id/event_version，message_id 由 outbox 事件 id 稳定派生，Header 携带 `X-Trace-Id`）至 direct 交换机 `export.job.exchange` → 等待 Publisher Confirm，**仅 ACK 且无 Returned 才回填 `published_at`**；send 异常/NACK/退回/超时一律保留事件下轮补发（至少一次投递，`outbox_publish_deferred` 日志），Job 不因发布失败改变状态。消息正文最小化，执行数据以库内 Job 为准。设计见 [docs/export-outbox-reliable-delivery-notes.md](docs/export-outbox-reliable-delivery-notes.md)。
-- **RabbitMQ 消费端（条件抢占 + Attempt 审计）**：`ExportJobConsumer` 手动 Ack 消费（`listener.simple` 配 manual/prefetch=1/concurrency=2）——trace Header 合法恢复/缺失新建 → 契约不支持 `basicReject` 转 DLQ → `claimPendingJob` 以条件 UPDATE（`status='PENDING' AND attempt_count<3`）抢占执行权，与 RUNNING Attempt 插入（`MAX+1`）同一事务原子生效 → 抢占失败直接 Ack（重复投递无副作用，收敛为最多一次有效执行）→ 执行服务内部把业务异常收敛为 Job/Attempt FAILED（`FILE_GENERATION_FAILED`）后正常 Ack；claim 事务或 Channel 异常穿出不确认，保留重投机会。当前执行体为「尚未实现」占位（任务将收敛 FAILED 并留可查询的执行记录，第 15 章替换为批量读取 + SXSSF 流式生成）。设计见 [docs/export-consumer-claim-attempt-notes.md](docs/export-consumer-claim-attempt-notes.md)。
+- **RabbitMQ 消费端（条件抢占 + Attempt 审计）**：`ExportJobConsumer` 手动 Ack 消费（`listener.simple` 配 manual/prefetch=1/concurrency=2）——trace Header 合法恢复/缺失新建 → 契约不支持 `basicReject` 转 DLQ → `claimPendingJob` 以条件 UPDATE（`status='PENDING' AND attempt_count<3`）抢占执行权，与 RUNNING Attempt 插入（`MAX+1`）同一事务原子生效 → 抢占失败直接 Ack（重复投递无副作用，收敛为最多一次有效执行）→ 执行服务内部把业务异常收敛为 Job/Attempt FAILED（`FILE_GENERATION_FAILED`）后正常 Ack；claim 事务或 Channel 异常穿出不确认，保留重投机会。设计见 [docs/export-consumer-claim-attempt-notes.md](docs/export-consumer-claim-attempt-notes.md)。
+- **确定性数据读取管道（第 15 章）**：创建时 `ExportOrderMapper.snapshotByCriteria` 单查询统计命中 COUNT 与范围内 MAX(id)（高水位 `max_order_id_at_create`，比全表 MAX 更贴合任务边界）；执行体 `ExportExecutionService.runJob` 加载 Job 快照 → `filter_snapshot` 反序列化重建 `OrderCriteria`（结构性杜绝漏字段重建）→ Keyset 批查 `findBatch`（`id > lastId AND id <= max_order_id_at_create` + 跨 Mapper 复用 `OrderMapper.criteriaConditions` 共享筛选片段 + `ORDER BY id ASC LIMIT`，SELECTED_IDS/FILTER 两模式共享同一条 SQL）→ 每批推进 `processed_rows` → 空批/不足一批双结束。游标推进遵循「先写入成功、后推进」（writeBatch 扩展点预留第 17 章），读取完成后任务仍收敛 FAILED（Excel 生成未接入）；`export.execution.batch-size` 默认 1000。设计见 [docs/export-keyset-read-pipeline-notes.md](docs/export-keyset-read-pipeline-notes.md)。
 - **前端数据流**：`requestJson` 统一解析 Envelope（2xx 非 Envelope 抛 `Invalid API envelope`，错误统一抛 `ApiError`，携带 message/code/status/traceId/fieldErrors）→ react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
 - **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式，按 be-td.md 4.5 契约先行，后端创建接口未实现前失败走统一错误提示）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
 - **前端界面主题与防抖动**：antd theme token 定制（深色 Sider 品牌区 + 白色顶栏动态页题 + Card 分区布局）；表格启用固定列宽（`tableLayout: fixed`）、固定表体高度（`scroll.y` 内部滚动）与 `scrollbar-gutter: stable` 滚动条占位，配合 react-query `placeholderData: keepPreviousData` 平滑过渡，翻页/排序/筛选时页面零抖动。
@@ -154,6 +155,6 @@ HTTP 请求边界补全计划见 [docs/export-http-boundary-plan.md](docs/export
 创建任务幂等与 Outbox 补全计划见 [docs/export-create-idempotency-outbox-plan.md](docs/export-create-idempotency-outbox-plan.md)。
 
 1. 导出任务对订单查询契约的复用：创建导出任务时以 `OrderCriteria` 做 request snapshot（筛选导出），「勾选导出」经 `ids` 字段精确取数（[docs/order-query-design.md](docs/order-query-design.md) 第八节第 9 步；**创建入口已实现**，见 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)）。
-2. 导出任务闭环：SXSSF Excel 生成（替换执行服务占位）、状态机执行器、详情/重试/下载接口（be-td.md 4.6-4.10、6-9；创建接口、Job/Outbox 同事务落库与 RabbitMQ 消费端条件抢占已就绪，消费链路见 [docs/export-consumer-claim-attempt-notes.md](docs/export-consumer-claim-attempt-notes.md)）。
+2. 导出任务闭环：SXSSF Excel 生成与文件发布/成功终态（Keyset 读取管道与 writeBatch 扩展点已就绪，见 [docs/export-keyset-read-pipeline-notes.md](docs/export-keyset-read-pipeline-notes.md)）、状态机执行器、详情/重试/下载接口（be-td.md 4.6-4.10、6-9；创建接口、Job/Outbox 同事务落库与 RabbitMQ 消费端条件抢占已就绪，消费链路见 [docs/export-consumer-claim-attempt-notes.md](docs/export-consumer-claim-attempt-notes.md)）。
 3. 进度推送前端消费：SSE `job.progress` 事件消费 + `useExportEvents` + 轮询降级（be-td.md 10、fe-td.md 6；纯前端开发计划见 [docs/export-sse-design.md](docs/export-sse-design.md)，未实现的后端依赖一律列为前置条件）。
 4. 前端任务中心：导出任务列表、进度展示（SSE + 轮询降级）、下载与重试入口（fe-td.md 6-8；订单页筛选、勾选与导出入口已实现）。

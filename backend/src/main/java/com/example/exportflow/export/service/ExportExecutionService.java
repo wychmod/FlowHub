@@ -1,15 +1,26 @@
 package com.example.exportflow.export.service;
 
+import com.example.exportflow.common.web.trace.TraceIdSupport;
 import com.example.exportflow.common.web.util.ExceptionUtils;
+import com.example.exportflow.export.entity.ExportJobEntity;
+import com.example.exportflow.export.entity.ExportOrderRow;
+import com.example.exportflow.export.mapper.ExportJobMapper;
+import com.example.exportflow.export.mapper.ExportOrderMapper;
+import com.example.exportflow.order.query.OrderCriteria;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 /**
- * 导出执行服务：消费端抢占成功后调用，负责实际生成文件并把业务失败收敛为可查询事实。
+ * 导出执行服务：消费端抢占成功后调用，按任务快照 Keyset 批量读取订单并把业务失败收敛为可查询事实。
  * <p>
- * 真正的批量读取与 SXSSF 流式 Excel 生成按第 15 章展开；当前执行体为占位实现，
- * 借其失败路径打通 RUNNING → FAILED 收敛链路。
+ * 数据读取管道见第 15 章（快照重建 + 高水位上界 + id 游标）；SXSSF 写 Excel 与成功终态按第 17/18 章接入。
  */
 @Service
 public class ExportExecutionService {
@@ -19,10 +30,24 @@ public class ExportExecutionService {
     /** 执行失败统一错误码（export_jobs/export_job_attempts 的 error_code 分类）。 */
     public static final String ERROR_CODE_FILE_GENERATION = "FILE_GENERATION_FAILED";
 
-    private final ExportJobService exportJobService;
+    private static final String STATUS_RUNNING = "RUNNING";
 
-    public ExportExecutionService(ExportJobService exportJobService) {
+    private final ExportJobService exportJobService;
+    private final ExportJobMapper exportJobMapper;
+    private final ExportOrderMapper exportOrderMapper;
+    private final ObjectMapper objectMapper;
+    private final int batchSize;
+
+    public ExportExecutionService(ExportJobService exportJobService,
+                                  ExportJobMapper exportJobMapper,
+                                  ExportOrderMapper exportOrderMapper,
+                                  ObjectMapper objectMapper,
+                                  @Value("${export.execution.batch-size:1000}") int batchSize) {
         this.exportJobService = exportJobService;
+        this.exportJobMapper = exportJobMapper;
+        this.exportOrderMapper = exportOrderMapper;
+        this.objectMapper = objectMapper;
+        this.batchSize = batchSize;
     }
 
     /**
@@ -42,8 +67,47 @@ public class ExportExecutionService {
         }
     }
 
-    /** 执行体：第 15 章实现游标读取与流式 Excel 生成；占位阶段直接失败以收敛链路。 */
+    /**
+     * 执行体：加载任务快照后按 Keyset 游标分批读取——下界为已读最后 ID，上界为创建时高水位，
+     * 条件全部来自任务快照（不依赖浏览器/消息外的任何状态）。
+     * <p>
+     * 游标推进顺序即失败屏障：查询 → （第 17 章 writeBatch 扩展点）→ 累计 → 推进 lastId → 落进度；
+     * 空批或不足一批结束。文件生成与成功终态尚未实现，读取完成后仍收敛 FAILED。
+     */
     private void runJob(long jobId) {
-        throw new IllegalStateException("导出执行器尚未实现（第 15 章落地），job_id=" + jobId);
+        ExportJobEntity job = exportJobMapper.selectById(jobId);
+        if (job == null || !STATUS_RUNNING.equals(job.status())) {
+            throw new IllegalStateException("任务不存在或未处于 RUNNING，job_id=" + jobId);
+        }
+        OrderCriteria criteria = readCriteria(jobId, job.filterSnapshot());
+        long processed = 0;
+        long lastId = 0;
+        while (true) {
+            List<ExportOrderRow> batch = exportOrderMapper.findBatch(
+                    lastId, job.maxOrderIdAtCreate(), batchSize, criteria);
+            if (batch.isEmpty()) {
+                break;
+            }
+            // writeBatch 扩展点（第 17 章）：lastId 只能在本批真实写入成功后推进，失败批次不得伪装已处理
+            processed += batch.size();
+            lastId = batch.getLast().id();
+            exportJobMapper.updateProcessedRows(jobId, processed, LocalDateTime.now());
+            if (batch.size() < batchSize) {
+                break;
+            }
+        }
+        log.info("export_job_batches_read job_id={} processed={} filter_count={} trace_id={}",
+                jobId, processed, job.filterCount(), TraceIdSupport.currentTraceId());
+        throw new IllegalStateException("Excel 生成尚未实现（第 17 章），job_id=" + jobId
+                + "，已读取 " + processed + " 行");
+    }
+
+    /** 快照重建：filter_snapshot 直存 OrderCriteria 序列化 JSON，反序列化即得完整筛选条件。 */
+    private OrderCriteria readCriteria(long jobId, String filterSnapshot) {
+        try {
+            return objectMapper.readValue(filterSnapshot, OrderCriteria.class);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("筛选快照反序列化失败，job_id=" + jobId, ex);
+        }
     }
 }

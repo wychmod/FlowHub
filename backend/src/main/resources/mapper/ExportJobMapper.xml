@@ -26,25 +26,45 @@
         )
     </insert>
 
+    <!-- 创建态列清单（驼峰别名，配合构造器自动映射装配 ExportJobEntity record）。 -->
+    <sql id="jobColumns">
+        id,
+        job_no                AS jobNo,
+        status,
+        max_order_id_at_create AS maxOrderIdAtCreate,
+        idempotency_key       AS idempotencyKey,
+        request_hash          AS requestHash,
+        filter_count          AS filterCount,
+        filter_snapshot       AS filterSnapshot,
+        selected_order_ids    AS selectedOrderIds,
+        selected_columns      AS selectedColumns,
+        requested_file_name   AS requestedFileName,
+        created_at            AS createdAt,
+        updated_at            AS updatedAt
+    </sql>
+
+    <!-- 按主键查询（执行器加载任务快照）。 -->
+    <select id="selectById" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+        SELECT <include refid="jobColumns"/>
+        FROM export_jobs
+        WHERE id = #{jobId}
+    </select>
+
     <!-- 按幂等键查询（唯一约束保证至多一条）。 -->
     <select id="selectByIdempotencyKey" resultType="com.example.exportflow.export.entity.ExportJobEntity">
-        SELECT
-            id,
-            job_no                AS jobNo,
-            status,
-            max_order_id_at_create AS maxOrderIdAtCreate,
-            idempotency_key       AS idempotencyKey,
-            request_hash          AS requestHash,
-            filter_count          AS filterCount,
-            filter_snapshot       AS filterSnapshot,
-            selected_order_ids    AS selectedOrderIds,
-            selected_columns      AS selectedColumns,
-            requested_file_name   AS requestedFileName,
-            created_at            AS createdAt,
-            updated_at            AS updatedAt
+        SELECT <include refid="jobColumns"/>
         FROM export_jobs
         WHERE idempotency_key = #{idempotencyKey}
     </select>
+
+    <!-- 每批推进已处理行数；version 递增使进度变更对 SSE/HTTP 状态校准可见（第 16 章）。 -->
+    <update id="updateProcessedRows">
+        UPDATE export_jobs
+        SET processed_rows = #{processedRows},
+            updated_at = #{now},
+            version = version + 1
+        WHERE id = #{jobId}
+    </update>
 
     <!-- 条件抢占：WHERE 声明只允许从 PENDING 转换，数据库原子判断+更新，
          受影响行数即执行权裁决（1 抢到 / 0 重复投递或已被抢占或达上限）。

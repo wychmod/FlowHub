@@ -8,13 +8,14 @@ import com.example.exportflow.export.command.ExportColumn;
 import com.example.exportflow.export.command.ExportSelectionMode;
 import com.example.exportflow.export.dto.ExportJobPageResp;
 import com.example.exportflow.export.entity.ExportJobEntity;
+import com.example.exportflow.export.entity.ExportSelectionSnapshot;
 import com.example.exportflow.export.entity.OutboxEventEntity;
 import com.example.exportflow.export.error.ExportErrorCode;
 import com.example.exportflow.export.mapper.ExportJobAttemptMapper;
 import com.example.exportflow.export.mapper.ExportJobMapper;
+import com.example.exportflow.export.mapper.ExportOrderMapper;
 import com.example.exportflow.export.mapper.OutboxEventMapper;
 import com.example.exportflow.export.vo.ExportJobAcceptedVO;
-import com.example.exportflow.order.mapper.OrderMapper;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,20 +59,20 @@ public class ExportJobService {
     private final ExportJobMapper exportJobMapper;
     private final ExportJobAttemptMapper exportJobAttemptMapper;
     private final OutboxEventMapper outboxEventMapper;
-    private final OrderMapper orderMapper;
+    private final ExportOrderMapper exportOrderMapper;
     private final ObjectMapper objectMapper;
     private final long filterMaxRows;
 
     public ExportJobService(ExportJobMapper exportJobMapper,
                             ExportJobAttemptMapper exportJobAttemptMapper,
                             OutboxEventMapper outboxEventMapper,
-                            OrderMapper orderMapper,
+                            ExportOrderMapper exportOrderMapper,
                             ObjectMapper objectMapper,
                             @Value("${export.filter-max-rows:500000}") long filterMaxRows) {
         this.exportJobMapper = exportJobMapper;
         this.exportJobAttemptMapper = exportJobAttemptMapper;
         this.outboxEventMapper = outboxEventMapper;
-        this.orderMapper = orderMapper;
+        this.exportOrderMapper = exportOrderMapper;
         this.objectMapper = objectMapper;
         this.filterMaxRows = filterMaxRows;
     }
@@ -95,16 +96,16 @@ public class ExportJobService {
             return reuseOrConflict(existing, requestHash);
         }
 
-        long totalRows = countMatchedRows(command);
+        ExportSelectionSnapshot snapshot = validatedSnapshot(command);
         LocalDateTime now = LocalDateTime.now();
         ExportJobEntity job = new ExportJobEntity(
                 null,
                 generateJobNo(now),
                 STATUS_PENDING,
-                orderMapper.selectMaxId(),
+                snapshot.maxOrderIdAtCreate(),
                 idempotencyKey,
                 requestHash,
-                totalRows,
+                snapshot.filterCount(),
                 writeJson(command.criteria()),
                 writeJson(selectedOrderIds(command)),
                 writeJson(columnKeys(command)),
@@ -170,23 +171,23 @@ public class ExportJobService {
         return toAcceptedVO(existing);
     }
 
-    /** 业务校验：命中 0 行按模式报错；筛选超过配置上限拒绝。 */
-    private long countMatchedRows(CreateExportJobCommand command) {
-        long count = orderMapper.countByCriteria(command.criteria());
+    /** 业务校验 + 一致性快照：命中 0 行按模式报错、筛选超上限拒绝；单查询取范围 COUNT 与高水位。 */
+    private ExportSelectionSnapshot validatedSnapshot(CreateExportJobCommand command) {
+        ExportSelectionSnapshot snapshot = exportOrderMapper.snapshotByCriteria(command.criteria());
         if (command.mode() == ExportSelectionMode.SELECTED_IDS) {
-            if (count == 0) {
+            if (snapshot.filterCount() == 0) {
                 throw new BusinessException(ExportErrorCode.EXPORT_SELECTION_EMPTY);
             }
         } else {
-            if (count == 0) {
+            if (snapshot.filterCount() == 0) {
                 throw new BusinessException(ExportErrorCode.EXPORT_FILTER_ZERO_ROWS);
             }
-            if (count > filterMaxRows) {
+            if (snapshot.filterCount() > filterMaxRows) {
                 throw new BusinessException(ExportErrorCode.EXPORT_FILTER_TOO_MANY_ROWS,
-                        "筛选命中订单数 " + count + " 超过上限 " + filterMaxRows);
+                        "筛选命中订单数 " + snapshot.filterCount() + " 超过上限 " + filterMaxRows);
             }
         }
-        return count;
+        return snapshot;
     }
 
     /** 构建同事务写入的 Outbox 事件（payload 必含 job_id/job_no/request_snapshot/columns/file_name/trace_id）。 */
