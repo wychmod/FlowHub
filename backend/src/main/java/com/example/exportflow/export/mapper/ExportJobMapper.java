@@ -20,11 +20,16 @@ public interface ExportJobMapper {
             @Param("jobId")
             long jobId);
 
-    /** 每批推进已处理行数（version 递增使进度变更对状态校准可见）。 */
-    int updateProcessedRows(
+    /**
+     * 进度推进（条件守卫：仅 RUNNING 且不回退可推进，同批续期 heartbeat/lease）。
+     *
+     * @return 1 = 推进成功；0 = 任务非 RUNNING 或进度回退（调用方须 fail-fast）
+     */
+    int updateProgress(
             @Param("jobId") long jobId,
             @Param("processedRows") long processedRows,
-            @Param("now") LocalDateTime now);
+            @Param("now") LocalDateTime now,
+            @Param("leaseExpiresAt") LocalDateTime leaseExpiresAt);
 
     /** 按幂等键查询任务（幂等命中复用），未命中返回 null。 */
     ExportJobEntity selectByIdempotencyKey(

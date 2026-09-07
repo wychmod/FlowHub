@@ -26,7 +26,7 @@
         )
     </insert>
 
-    <!-- 创建态列清单（驼峰别名，配合构造器自动映射装配 ExportJobEntity record）。 -->
+    <!-- 创建态 + 执行反馈列清单（驼峰别名，配合构造器自动映射装配 ExportJobEntity record）。 -->
     <sql id="jobColumns">
         id,
         job_no                AS jobNo,
@@ -39,6 +39,10 @@
         selected_order_ids    AS selectedOrderIds,
         selected_columns      AS selectedColumns,
         requested_file_name   AS requestedFileName,
+        version,
+        processed_rows        AS processedRows,
+        error_code            AS errorCode,
+        error_message         AS errorMessage,
         created_at            AS createdAt,
         updated_at            AS updatedAt
     </sql>
@@ -57,13 +61,19 @@
         WHERE idempotency_key = #{idempotencyKey}
     </select>
 
-    <!-- 每批推进已处理行数；version 递增使进度变更对 SSE/HTTP 状态校准可见（第 16 章）。 -->
-    <update id="updateProcessedRows">
+    <!-- 进度推进（第 16 章条件守卫）：status 单向防终态写入、processed_rows 单调防旧批回退、
+         heartbeat/lease 续期供第 19 章失联判断；version 递增使 SSE/HTTP 校准可区分新旧。
+         受影响 0 行 = 状态已被并发推进或进度回退，调用方须 fail-fast，不得带病继续写文件。 -->
+    <update id="updateProgress">
         UPDATE export_jobs
         SET processed_rows = #{processedRows},
+            last_heartbeat_at = #{now},
+            lease_expires_at = #{leaseExpiresAt},
             updated_at = #{now},
             version = version + 1
         WHERE id = #{jobId}
+          AND status = 'RUNNING'
+          AND processed_rows &lt;= #{processedRows}
     </update>
 
     <!-- 条件抢占：WHERE 声明只允许从 PENDING 转换，数据库原子判断+更新，
