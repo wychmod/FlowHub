@@ -11,6 +11,7 @@ import com.example.exportflow.export.entity.ExportJobEntity;
 import com.example.exportflow.export.entity.ExportSelectionSnapshot;
 import com.example.exportflow.export.entity.OutboxEventEntity;
 import com.example.exportflow.export.error.ExportErrorCode;
+import com.example.exportflow.export.event.ExportJobChanged;
 import com.example.exportflow.export.mapper.ExportJobAttemptMapper;
 import com.example.exportflow.export.mapper.ExportJobMapper;
 import com.example.exportflow.export.mapper.ExportOrderMapper;
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +63,7 @@ public class ExportJobService {
     private final OutboxEventMapper outboxEventMapper;
     private final ExportOrderMapper exportOrderMapper;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher events;
     private final long filterMaxRows;
 
     public ExportJobService(ExportJobMapper exportJobMapper,
@@ -68,12 +71,14 @@ public class ExportJobService {
                             OutboxEventMapper outboxEventMapper,
                             ExportOrderMapper exportOrderMapper,
                             ObjectMapper objectMapper,
+                            ApplicationEventPublisher events,
                             @Value("${export.filter-max-rows:500000}") long filterMaxRows) {
         this.exportJobMapper = exportJobMapper;
         this.exportJobAttemptMapper = exportJobAttemptMapper;
         this.outboxEventMapper = outboxEventMapper;
         this.exportOrderMapper = exportOrderMapper;
         this.objectMapper = objectMapper;
+        this.events = events;
         this.filterMaxRows = filterMaxRows;
     }
 
@@ -110,6 +115,10 @@ public class ExportJobService {
                 writeJson(selectedOrderIds(command)),
                 writeJson(columnKeys(command)),
                 command.fileName() != null ? command.fileName() : defaultFileName(now),
+                null,
+                null,
+                null,
+                null,
                 now,
                 now);
         try {
@@ -157,8 +166,14 @@ public class ExportJobService {
     public void markFailed(long jobId, String errorCode, String errorMessage) {
         LocalDateTime now = LocalDateTime.now();
         String message = truncateMessage(errorMessage);
-        exportJobMapper.markFailed(jobId, errorCode, message, now);
+        // updated = UPDATE 受影响行数（主键条件，至多 1 行）：1 = 本次收敛生效，0 = 已被其他路径推进
+        int updated = exportJobMapper.markFailed(jobId, errorCode, message, now);
+        // Attempt 侧返回值不判断：Job 是状态事实源，Attempt 仅审计记录（无 RUNNING 行不影响收敛事实）
         exportJobAttemptMapper.markFailed(jobId, errorCode, message, now);
+        // DB 事实落定后发布变化事件（AFTER_COMMIT 提交后广播）；0 行不发伪事件
+        if (updated == 1) {
+            events.publishEvent(new ExportJobChanged(jobId));
+        }
         log.warn("export_job_failed job_id={} error_code={} error_message={} trace_id={}",
                 jobId, errorCode, message, TraceIdSupport.currentTraceId());
     }
