@@ -14,13 +14,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * 导出执行服务：消费端抢占成功后调用，按任务快照 Keyset 批量读取订单并把业务失败收敛为可查询事实。
  * <p>
- * 数据读取管道见第 15 章（快照重建 + 高水位上界 + id 游标）；SXSSF 写 Excel 与成功终态按第 17/18 章接入。
+ * 数据读取管道见第 15 章（快照重建 + 高水位上界 + id 游标）；进度推进/通知见第 16 章（ExportProgressService）；
+ * SXSSF 写 Excel 与成功终态按第 17/18 章接入。
  */
 @Service
 public class ExportExecutionService {
@@ -33,17 +33,20 @@ public class ExportExecutionService {
     private static final String STATUS_RUNNING = "RUNNING";
 
     private final ExportJobService exportJobService;
+    private final ExportProgressService exportProgressService;
     private final ExportJobMapper exportJobMapper;
     private final ExportOrderMapper exportOrderMapper;
     private final ObjectMapper objectMapper;
     private final int batchSize;
 
     public ExportExecutionService(ExportJobService exportJobService,
+                                  ExportProgressService exportProgressService,
                                   ExportJobMapper exportJobMapper,
                                   ExportOrderMapper exportOrderMapper,
                                   ObjectMapper objectMapper,
                                   @Value("${export.execution.batch-size:1000}") int batchSize) {
         this.exportJobService = exportJobService;
+        this.exportProgressService = exportProgressService;
         this.exportJobMapper = exportJobMapper;
         this.exportOrderMapper = exportOrderMapper;
         this.objectMapper = objectMapper;
@@ -52,7 +55,8 @@ public class ExportExecutionService {
 
     /**
      * 执行任务并把业务异常内部收敛为 Job/Attempt FAILED，不向 Consumer 外抛
-     * （失败已成为可查询事实，随后正常 Ack，避免同一条消息无限重放）。
+     * （失败已成为可查询事实，随后正常 Ack，避免同一条消息无限重放）；
+     * 收敛后按 DB 事实刷新投影并经事件广播终态。
      * <p>
      * markFailed 自身失败属基础设施故障，异常穿出由 Consumer 走不 Ack 路径。
      */
@@ -62,6 +66,7 @@ public class ExportExecutionService {
         } catch (Exception ex) {
             String message = ExceptionUtils.messageOrTypeName(ex);
             exportJobService.markFailed(jobId, ERROR_CODE_FILE_GENERATION, message);
+            exportProgressService.refreshProjection(jobId);
             log.warn("export_execution_failed job_id={} error_code={} reason={}",
                     jobId, ERROR_CODE_FILE_GENERATION, message);
         }
@@ -91,7 +96,8 @@ public class ExportExecutionService {
             // writeBatch 扩展点（第 17 章）：lastId 只能在本批真实写入成功后推进，失败批次不得伪装已处理
             processed += batch.size();
             lastId = batch.getLast().id();
-            exportJobMapper.updateProcessedRows(jobId, processed, LocalDateTime.now());
+            // 条件推进事实源（0 行 fail-fast）→ 发事件 → 尽力写投影（第 16 章）
+            exportProgressService.report(jobId, processed, job.filterCount());
             if (batch.size() < batchSize) {
                 break;
             }
