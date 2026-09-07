@@ -29,6 +29,13 @@ spring:
         acknowledge-mode: manual
         prefetch: 1
         concurrency: 2
+  # Redis（活跃进度投影，第 16 章）：ExportProgressService 尽力写 export:progress:<jobId> Hash + TTL 48h。
+  # Redis 未启动时投影写入失败仅记 redis_progress_write_failed 降级日志，应用照常运行，
+  # /actuator/health 的 redis 组件为 DOWN（与 rabbit 组件行为一致），事实源始终是 MySQL。
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 management:
   endpoints:

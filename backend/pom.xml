@@ -64,6 +64,13 @@
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
+        <!-- Redis（活跃进度投影，第 16 章）：StringRedisTemplate 写 export:progress:<jobId> Hash + TTL。
+             投影可失败——连接失败仅降级日志，不影响任务推进（事实源始终是 MySQL）。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

@@ -14,6 +14,12 @@ spring:
     listener:
       simple:
         auto-startup: false
+  # Redis 短超时：测试环境无真实 Redis，Lettuce 懒连接在投影写入时快速失败（走降级日志），
+  # 避免默认连接超时拖慢每批进度推进。
+  data:
+    redis:
+      connect-timeout: 100ms
+      timeout: 100ms
 
 # 注意：本文件会整体遮蔽主 application.yml（同名 classpath 资源 test-classes 优先），
 # 因此 mybatis 配置需在此重复声明，与主配置保持一致；改动时两处同步。
@@ -27,3 +33,6 @@ mybatis:
 export:
   outbox:
     dispatch-delay-ms: 3600000
+  # SSE 心跳静默（同 Outbox 惯例）：心跳测试直接调 broadcastHeartbeat()，避免定时器干扰。
+  sse:
+    heartbeat-ms: 3600000
