@@ -57,4 +57,16 @@ public interface ExportJobMapper {
                    @Param("errorCode") String errorCode,
                    @Param("errorMessage") String errorMessage,
                    @Param("now") LocalDateTime now);
+
+    /**
+     * 成功收敛：RUNNING → SUCCEEDED 登记产物相对路径/大小、完成时间与下载截止时间（第 18 章发布协议第 3 步）。
+     *
+     * @param expiredAt 下载保留期截止时间（第 19 章清理任务消费）
+     * @return 1 = 收敛成功；0 = 任务已不处于 RUNNING（调用方须抛异常回滚并补偿删除已发布文件）
+     */
+    int markSucceeded(@Param("jobId") long jobId,
+                      @Param("filePath") String filePath,
+                      @Param("fileSizeBytes") long fileSizeBytes,
+                      @Param("now") LocalDateTime now,
+                      @Param("expiredAt") LocalDateTime expiredAt);
 }

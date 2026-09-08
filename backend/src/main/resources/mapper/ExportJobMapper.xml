@@ -43,6 +43,9 @@
         processed_rows        AS processedRows,
         error_code            AS errorCode,
         error_message         AS errorMessage,
+        file_path             AS filePath,
+        file_size_bytes       AS fileSizeBytes,
+        expired_at            AS expiredAt,
         created_at            AS createdAt,
         updated_at            AS updatedAt
     </sql>
@@ -101,6 +104,21 @@
             error_code = #{errorCode},
             error_message = #{errorMessage},
             finished_at = #{now},
+            updated_at = #{now},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
+    <!-- 成功收敛（第 18 章发布协议第 3 步）：登记产物相对路径/大小与下载截止时间；
+         status='RUNNING' 单向条件防重复收敛，0 行时调用方须补偿删除已发布文件。 -->
+    <update id="markSucceeded">
+        UPDATE export_jobs
+        SET status = 'SUCCEEDED',
+            file_path = #{filePath},
+            file_size_bytes = #{fileSizeBytes},
+            finished_at = #{now},
+            expired_at = #{expiredAt},
             updated_at = #{now},
             version = version + 1
         WHERE id = #{jobId}
