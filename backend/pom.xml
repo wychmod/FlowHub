@@ -71,6 +71,14 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Apache POI（SXSSF 流式 Excel 生成，第 17 章）：窗口内仅保留最近 N 行，
+             较早行刷至 POI 管理的临时文件（workbook.dispose() 负责清理）。 -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.3.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

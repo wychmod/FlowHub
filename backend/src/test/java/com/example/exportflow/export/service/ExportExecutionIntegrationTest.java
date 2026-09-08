@@ -1,5 +1,6 @@
 package com.example.exportflow.export.service;
 
+import com.example.exportflow.export.excel.ExcelExportWriter;
 import com.example.exportflow.export.mapper.ExportOrderMapper;
 import com.example.exportflow.order.query.OrderCriteria;
 import com.example.exportflow.order.query.SortDirection;
@@ -14,6 +15,8 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +26,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -45,6 +51,9 @@ class ExportExecutionIntegrationTest {
     private ExportExecutionService exportExecutionService;
 
     @Autowired
+    private ExportFileService exportFileService;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -52,6 +61,9 @@ class ExportExecutionIntegrationTest {
 
     @SpyBean
     private ExportOrderMapper exportOrderMapper;
+
+    @SpyBean
+    private ExcelExportWriter excelExportWriter;
 
     @BeforeEach
     void cleanTables() {
@@ -134,6 +146,39 @@ class ExportExecutionIntegrationTest {
         assertThat(processedRows(jobId)).isZero();
         assertThat(jobStatus(jobId)).isEqualTo("FAILED");
         assertThat(jobErrorCode(jobId)).isEqualTo(ExportExecutionService.ERROR_CODE_FILE_GENERATION);
+    }
+
+    // ==================== 文件生成（第 17 章 writeBatch 扩展点） ====================
+
+    @Test
+    void fileRowsMatchProcessedRowsAndTempCleanedOnFailureConvergence() {
+        insertOrders(1, 3, "EF-", "PAID", "WEB");
+        long jobId = insertRunningJob(3L, "{}");
+
+        exportExecutionService.execute(jobId);
+
+        // 读取 + 写盘全部成功：processedRows 与写入行数一致；失败收敛删除半成品（成功发布随第 18 章）
+        assertThat(processedRows(jobId)).isEqualTo(3L);
+        assertThat(jobStatus(jobId)).isEqualTo("FAILED");
+        assertThat(Files.exists(exportFileService.temporaryPath(jobId, 0))).isFalse();
+    }
+
+    @Test
+    void writeBatchFailureDoesNotAdvanceProgressAndCleansFile() throws Exception {
+        insertOrders(1, 5, "EF-", "PAID", "WEB");
+        long jobId = insertRunningJob(5L, "{}");
+        // 会话由 open() 每次创建：以 mock 会话注入写盘失败（Mockito 5 支持模拟 final 嵌套类）
+        ExcelExportWriter.WorkbookSession failingSession = mock(ExcelExportWriter.WorkbookSession.class);
+        doThrow(new RuntimeException("disk full")).when(failingSession).writeBatch(any());
+        doReturn(failingSession).when(excelExportWriter).open(any(Path.class), any());
+        Path temporary = exportFileService.temporaryPath(jobId, 0);
+
+        exportExecutionService.execute(jobId);
+
+        // 失败屏障：writeBatch 抛出时游标/进度不得虚假推进，半成品临时文件被清理
+        assertThat(processedRows(jobId)).isZero();
+        assertThat(jobStatus(jobId)).isEqualTo("FAILED");
+        assertThat(Files.exists(temporary)).isFalse();
     }
 
     // ==================== 防御：任务不存在 ====================
