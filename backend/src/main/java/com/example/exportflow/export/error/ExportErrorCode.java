@@ -17,7 +17,12 @@ public enum ExportErrorCode implements ErrorCode {
     EXPORT_SELECTION_EMPTY("EXPORT_SELECTION_EMPTY", "勾选的订单均不存在", HttpStatus.BAD_REQUEST),
     EXPORT_FILTER_ZERO_ROWS("EXPORT_FILTER_ZERO_ROWS", "筛选条件未命中任何订单", HttpStatus.BAD_REQUEST),
     EXPORT_FILTER_TOO_MANY_ROWS("EXPORT_FILTER_TOO_MANY_ROWS", "筛选命中订单数超过上限", HttpStatus.BAD_REQUEST),
-    IDEMPOTENCY_CONFLICT("IDEMPOTENCY_CONFLICT", "相同幂等键的请求内容不一致", HttpStatus.CONFLICT);
+    IDEMPOTENCY_CONFLICT("IDEMPOTENCY_CONFLICT", "相同幂等键的请求内容不一致", HttpStatus.CONFLICT),
+    EXPORT_JOB_NOT_FOUND("EXPORT_JOB_NOT_FOUND", "导出任务不存在", HttpStatus.NOT_FOUND),
+    EXPORT_JOB_NOT_DOWNLOADABLE("EXPORT_JOB_NOT_DOWNLOADABLE", "导出任务尚未完成，无法下载", HttpStatus.CONFLICT),
+    EXPORT_FILE_EXPIRED("EXPORT_FILE_EXPIRED", "导出文件已过期，请重新创建导出任务", HttpStatus.GONE),
+    EXPORT_FILE_MISSING("EXPORT_FILE_MISSING", "导出文件不存在或已被清理，请重新创建导出任务", HttpStatus.NOT_FOUND),
+    EXPORT_PATH_INVALID("EXPORT_PATH_INVALID", "导出文件路径不合法，请重新创建导出任务", HttpStatus.NOT_FOUND);
 
     private final String code;
     private final String message;
