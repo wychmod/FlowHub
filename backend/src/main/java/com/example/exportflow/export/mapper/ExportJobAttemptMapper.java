@@ -29,4 +29,7 @@ public interface ExportJobAttemptMapper {
                    @Param("errorCode") String errorCode,
                    @Param("errorMessage") String errorMessage,
                    @Param("now") LocalDateTime now);
+
+    /** 查询当前 RUNNING 尝试的序号（执行体分配 attempt 临时文件名），无 RUNNING 尝试返回 null。 */
+    Integer selectRunningAttemptNo(@Param("jobId") long jobId);
 }
