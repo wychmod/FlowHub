@@ -30,6 +30,12 @@ public interface ExportJobAttemptMapper {
                    @Param("errorMessage") String errorMessage,
                    @Param("now") LocalDateTime now);
 
+    /** 收敛当前 RUNNING 尝试为 SUCCEEDED 并登记该次产物（审计记录，每次尝试各自留存路径与大小）。 */
+    int markSucceeded(@Param("jobId") long jobId,
+                      @Param("filePath") String filePath,
+                      @Param("fileSizeBytes") long fileSizeBytes,
+                      @Param("now") LocalDateTime now);
+
     /** 查询当前 RUNNING 尝试的序号（执行体分配 attempt 临时文件名），无 RUNNING 尝试返回 null。 */
     Integer selectRunningAttemptNo(@Param("jobId") long jobId);
 }

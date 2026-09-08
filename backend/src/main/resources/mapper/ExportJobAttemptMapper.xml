@@ -29,6 +29,17 @@
           AND status = 'RUNNING'
     </update>
 
+    <!-- 收敛当前 RUNNING 尝试为 SUCCEEDED：登记该次尝试产物路径与大小（重试场景各次尝试证据互不覆盖）。 -->
+    <update id="markSucceeded">
+        UPDATE export_job_attempts
+        SET status = 'SUCCEEDED',
+            file_path = #{filePath},
+            file_size_bytes = #{fileSizeBytes},
+            finished_at = #{now}
+        WHERE job_id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
     <!-- 当前 RUNNING 尝试序号（claim 同事务插入后执行体查询；无 RUNNING 行返回 null 由调用方兜底）。 -->
     <select id="selectRunningAttemptNo" resultType="java.lang.Integer">
         SELECT MAX(attempt_no)
