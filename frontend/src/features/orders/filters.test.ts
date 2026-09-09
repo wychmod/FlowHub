@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import dayjs from 'dayjs';
-import { buildFilterSnapshot, formValuesToFilter } from './filters';
+import { buildFilterSelection, buildFilterSnapshot, formValuesToFilter } from './filters';
 
 describe('formValuesToFilter', () => {
   it('全空表单折叠为空对象', () => {
@@ -109,5 +109,38 @@ describe('buildFilterSnapshot', () => {
       { field: 'created_at', direction: 'desc' },
     );
     expect(snapshot).toEqual({ sort_by: 'created_at', sort_order: 'desc' });
+  });
+});
+
+describe('buildFilterSelection', () => {
+  it('无排除 ID 时 selection 仅含 filter 快照', () => {
+    const selection = buildFilterSelection(
+      { orderStatus: ['PAID'] },
+      { field: 'created_at', direction: 'desc' },
+    );
+    expect(selection).toEqual({
+      mode: 'FILTER',
+      filter: { order_status: ['PAID'], sort_by: 'created_at', sort_order: 'desc' },
+    });
+  });
+
+  it('传入排除 ID 时携带 excluded_order_ids 并拷贝数组', () => {
+    const excludedIds = [3, 1, 2];
+    const selection = buildFilterSelection({}, { field: 'created_at', direction: 'desc' }, excludedIds) as {
+      excluded_order_ids?: number[];
+    };
+    expect(selection.excluded_order_ids).toEqual([3, 1, 2]);
+    // 拷贝隔离：修改入参不影响已构造的 payload
+    excludedIds.push(4);
+    expect(selection.excluded_order_ids).toEqual([3, 1, 2]);
+  });
+
+  it('空排除列表折叠为未传（不出现 excluded_order_ids 字段）', () => {
+    const selection = buildFilterSelection({}, { field: 'created_at', direction: 'desc' }, []);
+    expect(selection).toEqual({
+      mode: 'FILTER',
+      filter: { sort_by: 'created_at', sort_order: 'desc' },
+    });
+    expect('excluded_order_ids' in selection).toBe(false);
   });
 });

@@ -106,13 +106,15 @@ export-flow/
         ├── main.tsx           # 入口（react-query、antd 中文环境 + 全局主题 token）
         ├── App.tsx            # 根组件（轻量页面切换）
         ├── app/               # 布局壳层
-        │   ├── AppLayout.tsx  #   深色 Sider（品牌区 + 导航）+ 白色顶栏（动态页题）
+        │   ├── AppLayout.tsx  #   深色 Sider（品牌区 + 导航）+ 白色顶栏（动态页题 + 后端健康徽标）
+        │   ├── HealthBadge.tsx#   顶栏健康徽标（轮询 /actuator/health，Tooltip 组件细分）
         │   └── layoutMeta.ts  #   页面元信息（Header 页题事实源）
         ├── styles/index.css   # 全局样式（滚动条占位、表格数字等宽）
         ├── api/               # 跨 feature 复用的 API 防腐层
         │   ├── http.ts        #   requestJson（Envelope 结构校验与解包）/ ApiError / Envelope 类型
         │   ├── download.ts    #   文件下载协议工具（parseBlobError / filenameFromDisposition / saveBlob）
-        │   └── exportApi.ts   #   导出任务 API（列表 listExportJobs + 创建 createExportJob + 下载 downloadExportJob + 重试 retryExportJob + SSE eventsUrl）
+        │   ├── exportApi.ts   #   导出任务 API（列表 listExportJobs + 创建 createExportJob + 下载 downloadExportJob + 重试 retryExportJob + SSE eventsUrl）
+        │   └── healthApi.ts   #   Actuator 健康查询（原生 JSON 防腐，非 Envelope 结构）
         └── features/          # 业务 feature
             ├── orders/        #   订单列表页（筛选 + 排序 + 勾选 + 导出入口）
             └── exports/       #   导出任务页（列表 + SSE 实时进度 + 下载/重试 + useExportEvents Hook + ConnectionBadge）
@@ -136,7 +138,7 @@ export-flow/
 - **文件发布协议与安全下载（第 18 章）**：`ExportFileService` 为受控文件边界——exportRoot 启动期提纯（`toAbsolutePath().normalize()` → `createDirectories` → `toRealPath()`）、层级目录 `<UTC 日期>/<jobId>/attempt-N`、路径双层防腐（文本层 normalize 拒绝 `..` 与根组件，物理层逐段符号链接检查 + `toRealPath` 验真）；执行体收敛顺序为「写完 `.tmp` → `publish()` 同文件系统 `ATOMIC_MOVE` 发布为 `.xlsx`（不支持原子移动不降级、任务失败）→ `markSucceeded` 同事务置 Job/Attempt SUCCEEDED 并回填 `file_path`/`file_size_bytes`/`finished_at`/`expired_at`（保留期 `export.files.retention-hours` 默认 24h）→ 数据库失败补偿删除未登记文件」；下载接口 `GET /api/v1/export-jobs/{job_id}/download` 只按 Job 查（SUCCEEDED 且未过期 → `resolvePersisted` 受控解析 → 文件流 + RFC 5987 展示文件名），文件丢失不重新生成、路径污染返回结构化错误。设计见 [docs/export-file-publishing-notes.md](docs/export-file-publishing-notes.md)。
 - **恢复与清理（第 19 章）**：`ExportMaintenanceService` 启动恢复只收敛「租约已失效（含未写租约）」的 RUNNING 为 FAILED(`SERVICE_RESTARTED`)——Attempt 先行、Job 收尾同一前置条件，不自动重跑、不误伤活跃执行；人工重试 `POST /{job_id}/retry`（FAILED→PENDING + 同事务新 Outbox，失败 Attempt 证据保留，`attempt_count<3` 上限）；过期清理「文件删除成功才 markExpired EXPIRED」（路径非法/删除失败保持 SUCCEEDED 下轮再试）+ Redis 投影删除；孤儿文件三维对账（宽限期 1h + 活跃租约校验 + Job/Attempt 引用检查）；`export.cleanup-cron` 默认每小时。设计见 [docs/export-recovery-cleanup-notes.md](docs/export-recovery-cleanup-notes.md)。
 - **前端数据流**：`requestJson` 统一解析 Envelope（2xx 非 Envelope 抛 `Invalid API envelope`，错误统一抛 `ApiError`，携带 message/code/status/traceId/fieldErrors）→ react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
-- **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
+- **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式；筛选导出且存在勾选时提供「排除已勾选的 N 条订单」复选框（默认选中），走 `excluded_order_ids` 反选契约，排除列表空时字段折叠不出现）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
 - **前端界面主题与防抖动**：antd theme token 定制（深色 Sider 品牌区 + 白色顶栏动态页题 + Card 分区布局）；表格启用固定列宽（`tableLayout: fixed`）、固定表体高度（`scroll.y` 内部滚动）与 `scrollbar-gutter: stable` 滚动条占位，配合 react-query `placeholderData: keepPreviousData` 平滑过渡，翻页/排序/筛选时页面零抖动。
 - **前端 API 防腐层**：页面只说业务语言，协议细节收敛在 `api/` 层——`requestJson` 统一请求头、Envelope 结构校验与解包、错误转 `ApiError`；文件下载按 fe-td.md 7 处理「同一 URL 成功是文件流、失败是 JSON/文本」的分流（`parseBlobError`）与文件名解析（`filenameFromDisposition`）、浏览器保存（`saveBlob`），业务入口为 `downloadExportJob`。
 - **后端导出任务列表接口（P-4 真实化）**：`GET /api/v1/export-jobs` 从空列表占位改为真实分页查询（`ExportJobMapper.findPage` 按 `created_at DESC, id DESC` + `countAll`），Service 层 `listJobs` 按状态计算派生字段 `progress_percent`（复用 `ExportJobEventPayload.progressPercent` 规则，SUCCEEDED 才 100）与 `downloadable`（SUCCEEDED 且未过期）；`ExportJobItemVO` 扩为完整字段（进度/文件大小/错误/完成时间/过期时间/version），列表行字段与 SSE 事件 payload 对齐，使前端 `applyEvent` 可就地乐观更新。集成测试 `ExportJobListTest` 6 用例。
@@ -159,7 +161,7 @@ VITE_API_BASE_URL=http://localhost:8080
 - **后端窗口提示 "mvnw.cmd 不是内部或外部命令"**：部分环境（如 Git Bash 派生进程）携带 `NoDefaultCurrentDirectoryInExePath=1`，禁止 cmd 从当前目录查找可执行文件。`start.bat` 已在脚本内清除该变量并用 `.\mvnw.cmd` 显式路径调用，不受影响；若在其它终端手动执行，请同样使用 `.\mvnw.cmd` 写法。
 - **后端首次启动较慢**：Maven Wrapper 首次需下载依赖（本机 Maven 仓库已缓存 Spring Boot 3.3.2 时通常几十秒内完成），以窗口出现 `Started ExportFlowApplication` 为准。
 - **端口冲突**：后端 8080、前端 5174 被占用时无法启动，先关闭旧的服务窗口（Vite 配置了 `strictPort`，不会静默换端口）。
-- **`/actuator/health` 显示 DOWN**：RabbitMQ 未启动时 rabbit 健康组件为 DOWN（db 组件不受影响，应用功能正常，仅消息投递与消费延迟）。启动本机 RabbitMQ 后即恢复 UP，积压的 Outbox 事件由分发器自动补发、堆积的消息由消费者开始消费。
+- **`/actuator/health` 显示 DOWN**：RabbitMQ 未启动时 rabbit 健康组件为 DOWN（db 组件不受影响，应用功能正常，仅消息投递与消费延迟）。启动本机 RabbitMQ 后即恢复 UP，积压的 Outbox 事件由分发器自动补发、堆积的消息由消费者开始消费。`management.endpoint.health.show-details` 已设为 `always`，健康响应携带 db/rabbit/redis 组件细分，前端顶栏健康徽标（15s 轮询）的 Tooltip 据此展示各组件状态。
 
 ## 后续迭代指引
 

@@ -124,7 +124,12 @@ export interface ExportFilterSnapshot {
 export type CreateExportJobPayload = {
   selection:
     | { mode: 'SELECTED_IDS'; order_ids: number[] }
-    | { mode: 'FILTER'; filter: ExportFilterSnapshot };
+    | {
+        mode: 'FILTER';
+        filter: ExportFilterSnapshot;
+        /** 反选排除的订单 ID（be-td.md 4.5：仅 FILTER 分支有意义，最多 1000）。 */
+        excluded_order_ids?: number[];
+      };
   /** 导出列，至少 1 列，按白名单顺序输出。 */
   columns: ExportColumnKey[];
   /** 可选文件名（不含路径与扩展名），留空由后端按时间生成。 */

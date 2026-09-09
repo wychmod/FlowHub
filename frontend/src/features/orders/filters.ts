@@ -1,5 +1,5 @@
 import type { Dayjs } from 'dayjs';
-import type { ExportFilterSnapshot } from '../../api/exportApi';
+import type { CreateExportJobPayload, ExportFilterSnapshot } from '../../api/exportApi';
 import { formatLocalDateTime } from './api';
 import type {
   Currency,
@@ -103,4 +103,24 @@ export function buildFilterSnapshot(filter: SubmittedFilter, sort: SubmittedSort
   if (filter.createdAtBegin != null) snapshot.created_at_begin = formatLocalDateTime(filter.createdAtBegin);
   if (filter.createdAtEnd != null) snapshot.created_at_end = formatLocalDateTime(filter.createdAtEnd);
   return snapshot;
+}
+
+/**
+ * FILTER 模式 selection 构造：可附带反选排除 ID（后端 selection.excluded_order_ids 契约，最多 1000）。
+ * 空列表折叠为未传（对齐「空 = 不出现」契约），数组拷贝隔离外部引用。
+ */
+export function buildFilterSelection(
+  filter: SubmittedFilter,
+  sort: SubmittedSort,
+  excludedIds?: readonly number[],
+): CreateExportJobPayload['selection'] {
+  const selection: {
+    mode: 'FILTER';
+    filter: ExportFilterSnapshot;
+    excluded_order_ids?: number[];
+  } = { mode: 'FILTER', filter: buildFilterSnapshot(filter, sort) };
+  if (excludedIds != null && excludedIds.length > 0) {
+    selection.excluded_order_ids = [...excludedIds];
+  }
+  return selection;
 }

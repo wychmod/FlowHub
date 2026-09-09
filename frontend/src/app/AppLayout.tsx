@@ -9,6 +9,7 @@ import { Button, Layout, Menu, Space, Tag, Typography, theme } from 'antd';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { PAGE_META, pageLabel } from './layoutMeta';
+import { HealthBadge } from './HealthBadge';
 
 export type PageKey = 'orders' | 'exports';
 
@@ -131,7 +132,11 @@ export function AppLayout({ selectedKey, onSelect, children }: AppLayoutProps) {
               {pageLabel(selectedKey)}
             </Typography.Title>
           </Space>
-          <Tag color="gold">演示环境</Tag>
+          <Space size={12} align="center">
+            {/* 全局后端健康状态：轮询 /actuator/health，仅描述服务可达性，不承载业务逻辑 */}
+            <HealthBadge />
+            <Tag color="gold">演示环境</Tag>
+          </Space>
         </Layout.Header>
         <Layout.Content style={{ padding: 24 }}>{children}</Layout.Content>
       </Layout>
