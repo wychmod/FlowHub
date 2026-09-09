@@ -85,6 +85,16 @@ npm run test:watch
 - 导出任务文件下载：`GET /api/v1/export-jobs/{job_id}/download`（仅 SUCCEEDED 且未过期返回文件流，错误返回结构化 Envelope）
 - 导出任务人工重试：`POST /api/v1/export-jobs/{job_id}/retry`（仅 FAILED 且未达尝试上限，202 受理回 PENDING；错误返回 `EXPORT_JOB_NOT_RETRYABLE`/`EXPORT_JOB_NOT_FOUND`）
 
+### 验证与交付（阶段 08 记录）
+
+**本机环境要求**：任一平台需 Docker、Java 21、Node 22、Chrome。**注意：当前开发机实际为 Node v20.16.0（低于 22）+ Windows 10，本机 3306/5672/6379 运行的是原生 MySQL/RabbitMQ/Redis（属同一进程 PID 2000），8080/5174 空闲**——因此全链路可走原生依赖直连，无需 Docker 绑端口（Docker 编排仅作可选前置，端口与既有原生实例冲突时不参与）。Java 已核验 21.0.3，Chrome 存在于 `C:\Program Files\Google\Chrome\Application\chrome.exe`。
+
+**性能基线要求（契约）**：性能采集须在受控 JVM `-Xmx512m` + 运行令牌下执行，校验 JVM PID 与身份后记录：实际数据量、创建耗时、到达终态耗时、峰值 JVM 内存(RSS)、文件大小、机器环境。**该带令牌/PID 校验的性能脚本本仓库尚未落地（属参考项目 project-export-flow 的交付物）**，落库前不伪造基准。
+
+**E2E 运行方式**：Playwright 真实浏览器链路（打开订单页→筛选/勾选→创建 Job→PENDING/RUNNING→SUCCEEDED→下载→校验工作簿表头/行数/所选订单）。前置：原生依赖健康 + orders 已有确定性数据（本机为 200,000 行 `EF2026-*`，恰落 10 万–30 万区间，无需重装载）。**Playwright 工程（`.spec.ts`/配置文件）本仓库尚未落地**，需先引入 @playwright/test 才可跑。
+
+**已知未实现能力**：鉴权（无登录/权限/job 归属校验）、对象存储（文件在本地 exportRoot，非 OSS/S3）、多实例部署（SSE 广播为进程内连接表 + 单机 DB/文件，无跨实例 fanout 与分布式锁）。
+
 ## 架构说明
 
 ### 后端结构
