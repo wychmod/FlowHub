@@ -32,7 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
 /**
- * 导出任务接口（创建入口、列表占位、SSE 事件订阅与文件下载；重试等后续迭代补充）。
+ * 导出任务接口（创建入口、列表占位、SSE 事件订阅、人工重试与文件下载）。
  */
 @RestController
 @RequestMapping("/export-jobs")
@@ -87,6 +87,13 @@ public class ExportJobController {
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events() {
         return exportSseService.connect();
+    }
+
+    /** 人工重试失败任务（be-td.md 4.8 契约：FAILED → PENDING + 新 Outbox，受理后仍走条件抢占）。 */
+    @PostMapping("/{job_id}/retry")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ExportJobAcceptedVO retry(@PathVariable("job_id") long jobId) {
+        return exportJobService.retry(jobId);
     }
 
     /** 下载已发布的导出文件（流式二进制；错误走统一 Envelope，前端 parseBlobError 兼容）。 */

@@ -133,6 +133,7 @@ public class ExportJobService {
                 null,
                 null,
                 null,
+                null,
                 now,
                 now);
         try {
@@ -261,6 +262,49 @@ public class ExportJobService {
         } catch (IOException ex) {
             return 0L;
         }
+    }
+
+    /**
+     * 人工重试（第 19 章）：FAILED → PENDING 条件重置，并同事务写入新 Outbox 事件重走可靠投递管道。
+     * <p>
+     * 失败 Attempt 历史一条不删（回答「曾怎样失败、何时再次执行」）；重试本身不执行任务——
+     * 消费端仍需经历条件抢占，attempt_count 在抢占时递增（不是重试点击次数）。
+     */
+    @Transactional
+    public ExportJobAcceptedVO retry(long jobId) {
+        ExportJobEntity job = exportJobMapper.selectById(jobId);
+        if (job == null) {
+            throw new BusinessException(ExportErrorCode.EXPORT_JOB_NOT_FOUND);
+        }
+        if (job.attemptCount() == null || job.attemptCount() >= MAX_ATTEMPTS) {
+            throw new BusinessException(ExportErrorCode.EXPORT_JOB_NOT_RETRYABLE);
+        }
+        // 条件重置（并发重试/状态已推进时 0 行拒绝）；重试与新 Outbox 同事务——状态提交后崩溃也不会静默遗忘
+        if (exportJobMapper.retry(jobId, MAX_ATTEMPTS, LocalDateTime.now()) != 1) {
+            throw new BusinessException(ExportErrorCode.EXPORT_JOB_NOT_RETRYABLE);
+        }
+        outboxEventMapper.insert(retryOutboxEvent(jobId));
+        log.info("export_job_retried job_id={} attempt_count={} trace_id={}",
+                jobId, job.attemptCount(), TraceIdSupport.currentTraceId());
+        return new ExportJobAcceptedVO(jobId, job.jobNo(), STATUS_PENDING, job.filterCount());
+    }
+
+    /** 重试 Outbox 事件：复用创建事件契约（消息只携带执行定位，消费端按库内 Job 抢占执行）。 */
+    private OutboxEventEntity retryOutboxEvent(long jobId) {
+        return new OutboxEventEntity(
+                null,
+                OutboxEventEntity.AGGREGATE_TYPE_EXPORT_JOB,
+                jobId,
+                OutboxEventEntity.EVENT_TYPE_EXPORT_JOB_CREATED,
+                writeJson(new RetriedPayload(jobId, true)),
+                TraceIdSupport.currentTraceId(),
+                LocalDateTime.now());
+    }
+
+    /** 重试事件载荷（JSON 契约固定）。 */
+    private record RetriedPayload(
+            @JsonProperty("job_id") long jobId,
+            @JsonProperty("retry") boolean retry) {
     }
 
     /** 幂等命中判定：请求内容一致复用原任务，不一致返回 409 冲突。 */
