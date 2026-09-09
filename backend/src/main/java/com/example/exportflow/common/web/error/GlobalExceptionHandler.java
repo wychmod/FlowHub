@@ -11,6 +11,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.LinkedHashMap;
@@ -69,6 +70,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ApiResponse<FieldErrorData>> handleBindException(BindException ex) {
         return badRequest(CommonErrorCode.VALIDATION_ERROR.message(), toFieldErrors(ex.getBindingResult()));
+    }
+
+    /**
+     * SSE 异步响应已不可用（客户端断开，如刷新/关闭页面）：属常态，只记 debug。
+     * 返回 void 使框架不再回写错误体，避免在 text/event-stream 上二次抛
+     * HttpMessageNotWritableException。
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException ex) {
+        log.debug("异步响应不可用（客户端可能已断开），跳过错误回写: {}", ex.toString());
     }
 
     /** 兜底异常：记录日志并返回 500。 */

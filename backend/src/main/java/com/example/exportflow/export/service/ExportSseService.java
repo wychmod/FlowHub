@@ -108,14 +108,22 @@ public class ExportSseService {
     private void sendQuietly(String connectionId, SseEmitter emitter, SseEmitter.SseEventBuilder event) {
         try {
             emitter.send(event);
-        } catch (IOException | IllegalStateException ex) {
-            connections.remove(connectionId);
-            try {
-                emitter.complete();
-            } catch (Exception completeFailure) {
-                // 连接已不可用，关闭失败无需处理
-            }
+        } catch (Exception ex) {
+            // 客户端断开（AsyncRequestNotUsableException/IOException）、连接已完成
+            // （IllegalStateException）等断连常态：只移除坏连接，绝不穿透广播——
+            // AFTER_COMMIT 阶段外泄会误触发执行体对已登记文件的补偿删除
+            closeQuietly(connectionId, emitter);
             log.debug("sse_send_failed connection_id={} reason={}", connectionId, ex.toString());
+        }
+    }
+
+    /** 移除连接并尽力优雅关闭；关闭失败（连接已不可用）无需处理。 */
+    private void closeQuietly(String connectionId, SseEmitter emitter) {
+        connections.remove(connectionId);
+        try {
+            emitter.complete();
+        } catch (Exception completeFailure) {
+            // 连接已不可用，关闭失败无需处理
         }
     }
 
