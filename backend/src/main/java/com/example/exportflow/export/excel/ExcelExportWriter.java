@@ -37,8 +37,8 @@ public class ExcelExportWriter {
     /** SXSSF 滑动窗口：内存只保留最近 100 行对象。它与数据库批次 1000（另一个类里的）是两个独立的资源旋钮。 */
     static final int ROW_WINDOW = 100;
 
-    /** 生成的 Sheet 名，用于打开 Excel 后看到的表名。 */
-    private static final String SHEET_NAME = "订单数据";
+    /** 生成的 Sheet 名（导出文件与导入模板共用同一表名，导入结构级校验按它识别数据 Sheet）。 */
+    public static final String SHEET_NAME = "订单数据";
     /** 下单时间列的固定展示格式。 */
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -82,6 +82,18 @@ public class ExcelExportWriter {
             case '=', '+', '-', '@' -> "'" + value;  // 危险开头 → 前补单引号
             default -> value;                          // 正常开头 → 原样返回
         };
+    }
+
+    /**
+     * 列 key → 中文表头标题（表头文案单一事实源，导入模板生成与结构级表头比对复用）。
+     * 未知列 key 抛出，防调用方拿错误标题静默落盘。
+     */
+    public static String titleOf(String key) {
+        ColumnSpec spec = COLUMNS.get(key);
+        if (spec == null) {
+            throw new IllegalArgumentException("不支持的导出列：" + key);
+        }
+        return spec.title();
     }
 
     /**
