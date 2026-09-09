@@ -17,7 +17,7 @@ class ExportJobEventPayloadTest {
         return new ExportJobEntity(42L, "EXP20260907-TEST", status, 100L, "k", "h",
                 total, "{}", "[]", "[]", "demo.xlsx",
                 version, processed, 0, errorCode, errorCode == null ? null : "生成失败",
-                null, null, null,
+                null, null, null, null,
                 LocalDateTime.of(2026, 9, 7, 0, 0), LocalDateTime.of(2026, 9, 7, 1, 0));
     }
 

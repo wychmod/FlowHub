@@ -3,6 +3,8 @@ import {
   createExportJob,
   downloadExportJob,
   EXPORT_COLUMN_OPTIONS,
+  exportEventsUrl,
+  retryExportJob,
   type ExportJobItem,
 } from './exportApi';
 
@@ -125,6 +127,38 @@ describe('createExportJob', () => {
   });
 });
 
+describe('retryExportJob', () => {
+  it('POST /api/v1/export-jobs/{id}/retry 并解包 Envelope 的 data', async () => {
+    const retried = { ...createdJob, status: 'PENDING' };
+    const mock = stubFetch(successEnvelope(retried), 202);
+    const result = await retryExportJob(91);
+
+    expect(mock).toHaveBeenCalledTimes(1);
+    const [url, init] = mock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/v1/export-jobs/91/retry');
+    expect(init.method).toBe('POST');
+    expect(result).toEqual(retried);
+  });
+
+  it('重试被拒（非 FAILED / 达上限）时抛出 409 ExportJobErrorCode', async () => {
+    stubFetch(
+      { code: 'EXPORT_JOB_NOT_RETRYABLE', message: '任务不可重试', data: null, trace_id: 't-409' },
+      409,
+    );
+    await expect(retryExportJob(91)).rejects.toMatchObject({
+      code: 'EXPORT_JOB_NOT_RETRYABLE',
+      traceId: 't-409',
+      status: 409,
+    });
+  });
+});
+
+describe('exportEventsUrl', () => {
+  it('SSE 事件流端点为 /api/v1/export-jobs/events（EventSource 消费）', () => {
+    expect(exportEventsUrl).toBe('/api/v1/export-jobs/events');
+  });
+});
+
 describe('downloadExportJob', () => {
   /** 下载场景 Response 桩：成功是文件流、失败可能是 JSON 错误包或网关文本。 */
   function stubDownloadResponse(options: {
@@ -167,7 +201,17 @@ describe('downloadExportJob', () => {
     job_id: 91,
     job_no: 'EXP20260903-6F4A2C8D',
     status: 'SUCCEEDED',
+    job_version: 3,
+    processed_rows: 100,
+    total_rows: 100,
+    progress_percent: 100,
+    downloadable: true,
+    file_size_bytes: 2048,
+    error_code: null,
+    error_message: null,
     created_at: '2026-09-03T10:00:00',
+    finished_at: '2026-09-03T10:00:05',
+    expired_at: '2026-09-04T10:00:00',
     file_name: 'orders_91.xlsx',
   };
 
@@ -206,6 +250,15 @@ describe('downloadExportJob', () => {
     await downloadExportJob({ ...succeededJob, file_name: undefined });
 
     expect(dom.anchors[0].download).toBe('export-EXP20260903-6F4A2C8D.xlsx');
+  });
+
+  it('file_name 缺 .xlsx 后缀时兜底命名补齐后缀（对齐后端展示名规则）', async () => {
+    stubDownloadResponse({ ok: true, status: 200 });
+    const dom = stubDownloadDom();
+
+    await downloadExportJob({ ...succeededJob, file_name: 'orders_91' });
+
+    expect(dom.anchors[0].download).toBe('orders_91.xlsx');
   });
 
   it('410 JSON 错误包（伪装成下载响应）抛出带 code/trace_id 的 ApiError', async () => {

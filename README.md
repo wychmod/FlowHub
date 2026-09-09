@@ -43,7 +43,7 @@ npm run dev
 | 健康检查 | http://localhost:8080/actuator/health |
 | 订单接口（分页） | http://localhost:8080/api/v1/orders?page=1&page_size=20 |
 | 订单接口（筛选 + 排序） | http://localhost:8080/api/v1/orders?order_status=PAID,SHIPPED&total_amount_min=100&sort=total_amount,desc |
-| 任务列表接口（空占位） | http://localhost:8080/api/v1/export-jobs |
+| 任务列表接口 | http://localhost:8080/api/v1/export-jobs（真实分页，返回进度/下载/错误等派生字段，契约见 be-td.md 4.6） |
 | 任务创建接口（POST，契约见 be-td.md 4.5） | `POST /api/v1/export-jobs` + `Idempotency-Key` 头，202 受理（Outbox 落库并由分发器发布至 RabbitMQ——Confirm ACK 且无 Returned 才标记已发布；消费者以条件抢占领取执行权，执行体按任务快照 Keyset 分批读取订单、SXSSF 流式写 Excel 至 `export-files/` 并推进 `processed_rows`，写盘完成后按发布协议原子移动为正式文件并登记 SUCCEEDED） |
 | SSE 事件订阅（契约见 be-td.md 4.10） | `GET /api/v1/export-jobs/events`（`text/event-stream`）：`job.progress`/`job.succeeded`/`job.failed`/`heartbeat` 4 类事件，事件 id = `jobId:version`，15s 心跳 |
 | 任务文件下载（fe-td.md 7.1 契约） | `GET /api/v1/export-jobs/{job_id}/download`：仅 SUCCEEDED 且未过期返回文件流（`Content-Disposition` 携带展示文件名），其余状态/过期/缺失/路径污染分别返回 `EXPORT_JOB_NOT_DOWNLOADABLE`(409)/`EXPORT_FILE_EXPIRED`(410)/`EXPORT_JOB_NOT_FOUND`/`EXPORT_FILE_MISSING`/`EXPORT_PATH_INVALID`(404) 结构化错误 |
@@ -88,7 +88,7 @@ export-flow/
 │       │   ├── entity/        #   Order 实体（record）
 │       │   └── vo/            #   列表行视图对象
 │       └── export/            # 导出任务业务模块（自包含 controller/dto/service/mapper/entity/vo/command/error/mq）
-│           ├── controller/    #   POST /api/v1/export-jobs（创建，202 受理）+ GET（空列表占位）+ GET /{job_id}/download（文件下载）
+│           ├── controller/    #   POST /api/v1/export-jobs（创建，202 受理）+ GET（分页列表）+ POST /{job_id}/retry（重试）+ GET /{job_id}/download（文件下载）
 │           ├── dto/           #   创建请求三件套（JSON 绑定 + 跨字段校验）/ 分页响应 DTO
 │           ├── command/       #   CreateExportJobCommand 规范化命令 + ExportColumn 列白名单 + 模式枚举
 │           ├── excel/         #   ExcelExportWriter（SXSSF 流式写 Excel：窗口 100 + safeText 防注入 + 样式复用）
@@ -110,13 +110,13 @@ export-flow/
         ├── api/               # 跨 feature 复用的 API 防腐层
         │   ├── http.ts        #   requestJson（Envelope 结构校验与解包）/ ApiError / Envelope 类型
         │   ├── download.ts    #   文件下载协议工具（parseBlobError / filenameFromDisposition / saveBlob）
-        │   └── exportApi.ts   #   导出任务 API（列表占位 + 创建 createExportJob + 下载 downloadExportJob）
+        │   └── exportApi.ts   #   导出任务 API（列表 listExportJobs + 创建 createExportJob + 下载 downloadExportJob + 重试 retryExportJob + SSE eventsUrl）
         └── features/          # 业务 feature
             ├── orders/        #   订单列表页（筛选 + 排序 + 勾选 + 导出入口）
-            └── exports/       #   导出任务页（占位）
+            └── exports/       #   导出任务页（列表 + SSE 实时进度 + 下载/重试 + useExportEvents Hook + ConnectionBadge）
 ```
 
-与 TD 文档的差异（均为后续迭代内容）：后端 `mq/` 包已随 Outbox 分发器与消费者落地（`excel/`、`schedule/` 等在引入 POI 时创建）；订单查询已接入真实 MyBatis（动态 SQL + record 构造器自动映射 + V8 索引），`InMemoryOrderMapperImpl` 仅保留为行为基准供对齐测试；前端 `useExportEvents.ts` 等在实现 SSE 进度推送时创建（订单页筛选/勾选/导出入口已实现）。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`）。
+与 TD 文档的差异（均为后续迭代内容）：后端 `mq/` 包已随 Outbox 分发器与消费者落地（`excel/`、`schedule/` 等在引入 POI 时创建）；订单查询已接入真实 MyBatis（动态 SQL + record 构造器自动映射 + V8 索引），`InMemoryOrderMapperImpl` 仅保留为行为基准供对齐测试；前端 `useExportEvents.ts`/导出任务页/ConnectionBadge 已随 SSE 进度推送交付实现。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`）。
 
 ## 已实现的最小案例
 
@@ -134,9 +134,11 @@ export-flow/
 - **文件发布协议与安全下载（第 18 章）**：`ExportFileService` 为受控文件边界——exportRoot 启动期提纯（`toAbsolutePath().normalize()` → `createDirectories` → `toRealPath()`）、层级目录 `<UTC 日期>/<jobId>/attempt-N`、路径双层防腐（文本层 normalize 拒绝 `..` 与根组件，物理层逐段符号链接检查 + `toRealPath` 验真）；执行体收敛顺序为「写完 `.tmp` → `publish()` 同文件系统 `ATOMIC_MOVE` 发布为 `.xlsx`（不支持原子移动不降级、任务失败）→ `markSucceeded` 同事务置 Job/Attempt SUCCEEDED 并回填 `file_path`/`file_size_bytes`/`finished_at`/`expired_at`（保留期 `export.files.retention-hours` 默认 24h）→ 数据库失败补偿删除未登记文件」；下载接口 `GET /api/v1/export-jobs/{job_id}/download` 只按 Job 查（SUCCEEDED 且未过期 → `resolvePersisted` 受控解析 → 文件流 + RFC 5987 展示文件名），文件丢失不重新生成、路径污染返回结构化错误。设计见 [docs/export-file-publishing-notes.md](docs/export-file-publishing-notes.md)。
 - **恢复与清理（第 19 章）**：`ExportMaintenanceService` 启动恢复只收敛「租约已失效（含未写租约）」的 RUNNING 为 FAILED(`SERVICE_RESTARTED`)——Attempt 先行、Job 收尾同一前置条件，不自动重跑、不误伤活跃执行；人工重试 `POST /{job_id}/retry`（FAILED→PENDING + 同事务新 Outbox，失败 Attempt 证据保留，`attempt_count<3` 上限）；过期清理「文件删除成功才 markExpired EXPIRED」（路径非法/删除失败保持 SUCCEEDED 下轮再试）+ Redis 投影删除；孤儿文件三维对账（宽限期 1h + 活跃租约校验 + Job/Attempt 引用检查）；`export.cleanup-cron` 默认每小时。设计见 [docs/export-recovery-cleanup-notes.md](docs/export-recovery-cleanup-notes.md)。
 - **前端数据流**：`requestJson` 统一解析 Envelope（2xx 非 Envelope 抛 `Invalid API envelope`，错误统一抛 `ApiError`，携带 message/code/status/traceId/fieldErrors）→ react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
-- **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式，按 be-td.md 4.5 契约先行，后端创建接口未实现前失败走统一错误提示）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
+- **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
 - **前端界面主题与防抖动**：antd theme token 定制（深色 Sider 品牌区 + 白色顶栏动态页题 + Card 分区布局）；表格启用固定列宽（`tableLayout: fixed`）、固定表体高度（`scroll.y` 内部滚动）与 `scrollbar-gutter: stable` 滚动条占位，配合 react-query `placeholderData: keepPreviousData` 平滑过渡，翻页/排序/筛选时页面零抖动。
-- **前端 API 防腐层**：页面只说业务语言，协议细节收敛在 `api/` 层——`requestJson` 统一请求头、Envelope 结构校验与解包、错误转 `ApiError`；文件下载按 fe-td.md 7 处理「同一 URL 成功是文件流、失败是 JSON/文本」的分流（`parseBlobError`）与文件名解析（`filenameFromDisposition`）、浏览器保存（`saveBlob`），业务入口为 `downloadExportJob`（后端下载接口已就绪）。
+- **前端 API 防腐层**：页面只说业务语言，协议细节收敛在 `api/` 层——`requestJson` 统一请求头、Envelope 结构校验与解包、错误转 `ApiError`；文件下载按 fe-td.md 7 处理「同一 URL 成功是文件流、失败是 JSON/文本」的分流（`parseBlobError`）与文件名解析（`filenameFromDisposition`）、浏览器保存（`saveBlob`），业务入口为 `downloadExportJob`。
+- **后端导出任务列表接口（P-4 真实化）**：`GET /api/v1/export-jobs` 从空列表占位改为真实分页查询（`ExportJobMapper.findPage` 按 `created_at DESC, id DESC` + `countAll`），Service 层 `listJobs` 按状态计算派生字段 `progress_percent`（复用 `ExportJobEventPayload.progressPercent` 规则，SUCCEEDED 才 100）与 `downloadable`（SUCCEEDED 且未过期）；`ExportJobItemVO` 扩为完整字段（进度/文件大小/错误/完成时间/过期时间/version），列表行字段与 SSE 事件 payload 对齐，使前端 `applyEvent` 可就地乐观更新。集成测试 `ExportJobListTest` 6 用例。
+- **前端导出任务页 + useExportEvents**：`useExportEvents` Hook 消费 SSE（docs/export-sse-design.md）——连接状态机 connecting/sse/polling/offline（连续 3 次失败切轮询 + 1/2/5/10s 退避）、`job_version` 版本栅栏乱序防御、乐观局部更新（仅覆盖事件携带字段，错误字段缺失保留/显式 null 清空的 hasOwnProperty 语义）、失效收敛（每次有效事件后 invalidate）、筛选缓存智能移除、挂载/可见性/在线状态生命周期清理；`ExportJobsPage` 完整页面（状态 Tag/进度条 + 行数/文件大小/创建/完成时间/下载按钮/重试 Popconfirm/分页/ConnectionBadge/空态/错误态），三条件降级轮询（非 sse + 有进行中任务时可见 3s / 隐藏 15s）；jsdom 单测 6 用例 + API 契约测试。已真实联调（创建 5 万行任务 → 执行 → SUCCEEDED → 下载 1.6MB Excel → 重试 409）。
 
 ## 前端访问后端的方式
 
@@ -166,6 +168,6 @@ HTTP 请求边界补全计划见 [docs/export-http-boundary-plan.md](docs/export
 创建任务幂等与 Outbox 补全计划见 [docs/export-create-idempotency-outbox-plan.md](docs/export-create-idempotency-outbox-plan.md)。
 
 1. 导出任务对订单查询契约的复用：创建导出任务时以 `OrderCriteria` 做 request snapshot（筛选导出），「勾选导出」经 `ids` 字段精确取数（[docs/order-query-design.md](docs/order-query-design.md) 第八节第 9 步；**创建入口已实现**，见 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)）。
-2. 导出任务闭环补全：文件发布、成功终态、下载接口、崩溃恢复、人工重试与过期清理均已实现（见 [docs/export-file-publishing-notes.md](docs/export-file-publishing-notes.md) 与 [docs/export-recovery-cleanup-notes.md](docs/export-recovery-cleanup-notes.md)）；后续为任务列表/详情接口真实化（be-td.md 4.6-4.10、6-9；创建接口、Job/Outbox 同事务落库与 RabbitMQ 消费端条件抢占已就绪，消费链路见 [docs/export-consumer-claim-attempt-notes.md](docs/export-consumer-claim-attempt-notes.md)）。
-3. 进度推送前端消费：SSE 事件消费 + `useExportEvents` + 轮询降级（be-td.md 10、fe-td.md 6；纯前端开发计划见 [docs/export-sse-design.md](docs/export-sse-design.md)，后端 SSE 端点与进度投影已就绪，端到端联调另依赖任务列表接口真实化 P-4）。
-4. 前端任务中心：导出任务列表、进度展示（SSE + 轮询降级）、下载与重试入口（fe-td.md 6-8；订单页筛选、勾选与导出入口已实现）。
+2. 导出任务闭环补全：文件发布、成功终态、下载接口、崩溃恢复、人工重试、过期清理、任务列表（P-4 真实化）均已实现（见 [docs/export-file-publishing-notes.md](docs/export-file-publishing-notes.md) 与 [docs/export-recovery-cleanup-notes.md](docs/export-recovery-cleanup-notes.md)）；后续为任务详情接口真实化（be-td.md 4.6-4.10、6-9）。
+3. 进度推送前端消费：`useExportEvents` + SSE 事件消费 + 轮询降级（be-td.md 10、fe-td.md 6；开发计划见 [docs/export-sse-design.md](docs/export-sse-design.md)）——已随前端导出任务页交付并完成端到端联调。
+4. 前端任务中心：导出任务列表、进度展示（SSE + 轮询降级）、下载与重试入口（fe-td.md 6-8）——已实现；后续为筛选条件 URL 同步与路由引入。

@@ -37,6 +37,12 @@ public interface ExportJobMapper {
             @Param("idempotencyKey")
             String idempotencyKey);
 
+    /** 分页查询任务列表（列表展示），按创建时间倒序 + id 倒序。 */
+    List<ExportJobEntity> findPage(@Param("limit") int limit, @Param("offset") int offset);
+
+    /** 导出任务总数（列表分页 total）。 */
+    long countAll();
+
     /**
      * 条件抢占：仅 PENDING 且未达尝试上限的任务可被置为 RUNNING（CAS 裁决执行权）。
      *

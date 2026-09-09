@@ -31,6 +31,7 @@ public record ExportJobEntity(
         String filePath,              // 成功产物相对路径（发布协议登记，下载/清理经受控解析）
         Long fileSizeBytes,           // 成功产物字节数（展示与审计证据）
         LocalDateTime expiredAt,      // 允许下载截止时间（保留期后清理并推进 EXPIRED）
+        LocalDateTime finishedAt,     // 完成时间（FAILED/SUCCEEDED 终态落库，列表展示）
 
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {

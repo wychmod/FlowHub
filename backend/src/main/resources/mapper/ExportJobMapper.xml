@@ -47,6 +47,7 @@
         file_path             AS filePath,
         file_size_bytes       AS fileSizeBytes,
         expired_at            AS expiredAt,
+        finished_at           AS finishedAt,
         created_at            AS createdAt,
         updated_at            AS updatedAt
     </sql>
@@ -56,6 +57,19 @@
         SELECT <include refid="jobColumns"/>
         FROM export_jobs
         WHERE id = #{jobId}
+    </select>
+
+    <!-- 分页查询(导出任务列表)：按创建时间倒序 + id 倒序稳定排序。 -->
+    <select id="findPage" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+        SELECT <include refid="jobColumns"/>
+        FROM export_jobs
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 导出任务总数（列表分页 total）。 -->
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM export_jobs
     </select>
 
     <!-- 按幂等键查询（唯一约束保证至多一条）。 -->

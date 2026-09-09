@@ -12,11 +12,13 @@ import com.example.exportflow.export.entity.ExportSelectionSnapshot;
 import com.example.exportflow.export.entity.OutboxEventEntity;
 import com.example.exportflow.export.error.ExportErrorCode;
 import com.example.exportflow.export.event.ExportJobChanged;
+import com.example.exportflow.export.event.ExportJobEventPayload;
 import com.example.exportflow.export.mapper.ExportJobAttemptMapper;
 import com.example.exportflow.export.mapper.ExportJobMapper;
 import com.example.exportflow.export.mapper.ExportOrderMapper;
 import com.example.exportflow.export.mapper.OutboxEventMapper;
 import com.example.exportflow.export.vo.ExportJobAcceptedVO;
+import com.example.exportflow.export.vo.ExportJobItemVO;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -93,9 +95,35 @@ public class ExportJobService {
         this.retentionHours = retentionHours;
     }
 
-    /** 查询导出任务分页列表（当前返回空列表）。 */
+    /** 查询导出任务分页列表（be-td.md 4.6）：派生 progress_percent/downloadable，按创建时间倒序。 */
     public ExportJobPageResp listJobs(int page, int pageSize) {
-        return new ExportJobPageResp(List.of(), 0, page, pageSize);
+        List<ExportJobItemVO> items = exportJobMapper.findPage(pageSize, (page - 1) * pageSize).stream()
+                .map(this::toListItem)
+                .toList();
+        return new ExportJobPageResp(items, exportJobMapper.countAll(), page, pageSize);
+    }
+
+    /** 实体 → 列表行 VO：派生 progress_percent（复用事件口径）与 downloadable（SUCCEEDED 且未过期）。 */
+    private ExportJobItemVO toListItem(ExportJobEntity job) {
+        long processed = job.processedRows() == null ? 0 : job.processedRows();
+        long total = job.filterCount() == null ? 0 : job.filterCount();
+        boolean notExpired = job.expiredAt() == null || job.expiredAt().isAfter(LocalDateTime.now());
+        return new ExportJobItemVO(
+                job.id(),
+                job.jobNo(),
+                job.status(),
+                job.version(),
+                job.processedRows(),
+                job.filterCount(),
+                ExportJobEventPayload.progressPercent(job.status(), processed, total),
+                STATUS_SUCCEEDED.equals(job.status()) && notExpired,
+                job.fileSizeBytes(),
+                job.errorCode(),
+                job.errorMessage(),
+                job.requestedFileName(),
+                job.createdAt(),
+                job.finishedAt(),
+                job.expiredAt());
     }
 
     /**
@@ -126,6 +154,7 @@ public class ExportJobService {
                 writeJson(selectedOrderIds(command)),
                 writeJson(columnKeys(command)),
                 command.fileName() != null ? command.fileName() : defaultFileName(now),
+                null,
                 null,
                 null,
                 null,

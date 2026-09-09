@@ -11,14 +11,37 @@ import type {
 /** 导出任务状态（字符串字面量联合类型，即 TS 中的枚举常量集合），取值与后端 ExportJobStatus 对齐。 */
 export type ExportJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED';
 
-/** 导出任务列表行（骨架版最小字段，完整字段见 be-td.md 4.6）。 */
+/**
+ * 导出任务列表行（be-td.md 4.6），字段与 SSE 事件 payload 对齐，
+ * 使 useExportEvents 的 applyEvent 能就地更新行的可更新字段。
+ */
 export interface ExportJobItem {
   job_id: number;
   job_no: string;
   status: ExportJobStatus;
-  created_at: string;
-  /** 生成的文件名（含扩展名）；任务未完成时可能缺省，下载时作响应头解析失败后的兜底。 */
+  /** 状态版本（SSE 事件 id = jobId:version 的 version），前端版本栅栏依据。 */
+  job_version: number;
+  /** 已推进行数（进度分子）。 */
+  processed_rows: number;
+  /** 命中总行数（进度分母）。 */
+  total_rows: number;
+  /** 派生进度百分比：SUCCEEDED 才 100，RUNNING 封顶 99。 */
+  progress_percent: number;
+  /** 是否可下载（SUCCEEDED 且未过期）。 */
+  downloadable: boolean;
+  /** 成功产物字节数；未完成时为 null。 */
+  file_size_bytes?: number | null;
+  /** 失败错误码；非失败为 null。 */
+  error_code?: string | null;
+  /** 失败原因；非失败为 null。 */
+  error_message?: string | null;
+  /** 创建时请求的文件名（可能不含 .xlsx 后缀）；列表展示列与下载响应头解析失败后的命名兜底。 */
   file_name?: string;
+  created_at: string;
+  /** 完成时间；未完成时为 null。 */
+  finished_at?: string | null;
+  /** 下载截止时间；非成功为 null。 */
+  expired_at?: string | null;
 }
 
 /** 导出任务分页响应。 */
@@ -27,6 +50,23 @@ export interface ExportJobPage {
   total: number;
   page: number;
   page_size: number;
+}
+
+/**
+ * SSE 任务事件 payload（docs/export-sse-design.md 3.2，与后端 ExportJobEventPayload 对齐）。
+ * 字段存在性即协议：进度/成功事件不含 error 字段，失败终态显式携带。
+ */
+export interface ExportJobEvent {
+  job_id: string;
+  job_version: number;
+  status: ExportJobStatus;
+  processed_rows: number;
+  total_rows: number;
+  progress_percent: number;
+  downloadable?: boolean;
+  error_code?: string | null;
+  error_message?: string | null;
+  occurred_at: string;
 }
 
 // 以下订单枚举类型复用 features/orders/api.ts 的定义（fe-td.md 规则：跨 feature 领域 API 放 api/ 层，
@@ -99,7 +139,10 @@ export interface ExportJobCreated {
   total_rows: number;
 }
 
-/** 分页查询导出任务列表（初始骨架版返回空列表占位）。 */
+/** 导出任务 SSE 事件流端点（GET，EventSource 消费）。 */
+export const exportEventsUrl = '/api/v1/export-jobs/events';
+
+/** 分页查询导出任务列表。 */
 export async function listExportJobs(params: { page: number; pageSize: number }): Promise<ExportJobPage> {
   const query = new URLSearchParams({
     page: String(params.page),
@@ -127,10 +170,17 @@ export async function downloadExportJob(job: ExportJobItem): Promise<void> {
   // 文件名兜底链：响应头解析 → 任务 file_name → 任务编号，保证下载文件名始终可用
   saveBlob(
     blob,
-    filenameFromDisposition(response.headers.get('Content-Disposition')) ??
-      job.file_name ??
-      `export-${job.job_no}.xlsx`,
+    filenameFromDisposition(response.headers.get('Content-Disposition')) ?? fallbackDownloadName(job),
   );
+}
+
+/** 下载兜底命名：任务请求名（缺 .xlsx 时补齐，对齐后端展示名规则）→ 任务编号。 */
+function fallbackDownloadName(job: ExportJobItem): string {
+  const requested = job.file_name?.trim();
+  if (requested) {
+    return requested.endsWith('.xlsx') ? requested : `${requested}.xlsx`;
+  }
+  return `export-${job.job_no}.xlsx`;
 }
 
 /** 创建导出任务；幂等键由调用方每次明确点击时生成（PRD 7.4.2）。 */
@@ -143,4 +193,9 @@ export function createExportJob(
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(payload),
   });
+}
+
+/** 人工重试失败任务（POST /{job_id}/retry，202 受理回 PENDING）。 */
+export function retryExportJob(jobId: number): Promise<ExportJobCreated> {
+  return requestJson<ExportJobCreated>(`/api/v1/export-jobs/${jobId}/retry`, { method: 'POST' });
 }
