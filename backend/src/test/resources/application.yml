@@ -36,3 +36,8 @@ export:
   # SSE 心跳静默（同 Outbox 惯例）：心跳测试直接调 broadcastHeartbeat()，避免定时器干扰。
   sse:
     heartbeat-ms: 3600000
+  # 维护调度静默（"-" 为 Spring 约定的禁用 cron）：维护测试直接调 cleanupExpiredExports()/reconcileStaleFiles()。
+  cleanup-cron: "-"
+  # 测试用隔离文件根：避免各测试上下文的启动恢复/孤儿对账扫描真实 export-files 目录（dev 产物/测试残留）。
+  files:
+    dir: ${java.io.tmpdir}/exportflow-test-files
