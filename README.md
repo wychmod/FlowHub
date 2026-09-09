@@ -17,6 +17,8 @@
 
 前置条件：JDK 21、Node.js ≥ 18、MySQL（本机 3306 端口存在 `exportflow` 数据库与 `exportflow/exportflow` 账号，见下方数据源说明；首次运行需联网下载依赖）。RabbitMQ 为**可选**前置（默认 `localhost:5672`，guest/guest）：未启动时后端仍可正常启动、创建接口可用，仅 Outbox 分发器每轮记录 `outbox_publish_deferred` 日志、消费监听容器后台持续重连，Broker 恢复后自动补发并开始消费；但 `/actuator/health` 会因 rabbit 组件显示 DOWN。Redis（默认 `localhost:6379`）同为**可选**前置：未启动时进度投影写入自动降级（仅记 `redis_progress_write_failed` 日志），任务执行与查询均不受影响，`/actuator/health` 会因 redis 组件显示 DOWN。
 
+想用 Docker 快速起 RabbitMQ：仓库根目录执行 `docker compose up -d rabbitmq`（管理台 `http://localhost:15672`，guest/guest；健康检查 `rabbitmq-diagnostics ping`，拓扑由应用启动时自动声明，见 `docker-compose.yml`）。该编排不含 MySQL——MySQL 保持与既有环境共存单独启动，避免 3306 端口冲突。
+
 双击 `backend/scripts/start.bat`：
 
 - 首次运行会自动执行 `npm install`；

@@ -1,0 +1,37 @@
+# ExportFlow 本地基础设施编排。
+#
+# 现状：本仓库要求 MySQL 与 RabbitMQ 作为外部依赖运行（见 AGENTS.md「一键启动」）。
+# RabbitMQ 为可选前置——未启动时后端照常运行，仅 Outbox 分发器记 outbox_publish_deferred、
+# 消费监听容器后台重连，Broker 恢复后自动补发并开始消费。
+#
+# 使用：
+#   docker compose up -d rabbitmq
+#   管理台：http://localhost:15672  (guest/guest)
+#   连接：  amqp://localhost:5672  (guest/guest，与 application.yml 默认一致)
+#
+# 后端连的 MySQL（localhost:3306，exportflow/exportflow）不属于本次编排，仍按既有方式单独启动，
+# 以免与本机已有实例端口冲突。
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: exportflow-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP（后端连接）
+      - "15672:15672" # 管理台
+    environment:
+      # 与 application.yml 默认 guest/guest 对齐；exchange/queue/binding 由应用启动时声明，无需预建
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping", "-q"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  rabbitmq-data:
