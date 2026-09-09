@@ -77,10 +77,10 @@ public class ExportJobController {
         return key;
     }
 
-    /** 查询导出任务分页列表（当前返回空列表）。 */
+    /** 查询导出任务分页列表（可选 status 过滤，契约见 be-td.md 4.6）。 */
     @GetMapping
     public ExportJobPageResp listJobs(@Valid @ModelAttribute ListExportJobsRequest request) {
-        return exportJobService.listJobs(request.page(), request.pageSize());
+        return exportJobService.listJobs(request.page(), request.pageSize(), request.status());
     }
 
     /** SSE 事件订阅（进度/终态广播 + 心跳，契约见 be-td.md 4.10）：断线重连与轮询降级由前端负责。 */

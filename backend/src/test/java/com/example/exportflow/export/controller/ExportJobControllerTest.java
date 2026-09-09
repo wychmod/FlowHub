@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -340,6 +341,22 @@ class ExportJobControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    // ==================== 列表可见性 ====================
+
+    @Test
+    void createdJobVisibleInListAfterRefresh() throws Exception {
+        performCreate("key-list-visible", """
+                {"selection":{"mode":"SELECTED_IDS","order_ids":[1,2]},"columns":["order_no"]}
+                """);
+
+        // 创建后列表接口能查到该 PENDING 任务（刷新后仍存在），派生 total_rows 回读勾选命中数
+        mockMvc.perform(get("/api/v1/export-jobs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data.items[0].total_rows").value(2));
     }
 
     // ==================== 幂等语义 ====================

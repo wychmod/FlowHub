@@ -1,6 +1,7 @@
 package com.example.exportflow.export.service;
 
 import com.example.exportflow.common.web.error.BusinessException;
+import com.example.exportflow.common.web.param.ParamUtils;
 import com.example.exportflow.common.web.trace.TraceIdSupport;
 import com.example.exportflow.common.web.util.Sha256Utils;
 import com.example.exportflow.export.command.CreateExportJobCommand;
@@ -37,6 +38,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -95,12 +97,30 @@ public class ExportJobService {
         this.retentionHours = retentionHours;
     }
 
-    /** 查询导出任务分页列表（be-td.md 4.6）：派生 progress_percent/downloadable，按创建时间倒序。 */
-    public ExportJobPageResp listJobs(int page, int pageSize) {
-        List<ExportJobItemVO> items = exportJobMapper.findPage(pageSize, (page - 1) * pageSize).stream()
+    /** 查询导出任务分页列表（be-td.md 4.6）：可选 status 过滤，派生 progress_percent/downloadable，按创建时间倒序。 */
+    public ExportJobPageResp listJobs(int page, int pageSize, String status) {
+        String statusFilter = normalizeStatusFilter(status);
+        List<ExportJobItemVO> items = exportJobMapper.findPage(pageSize, (page - 1) * pageSize, statusFilter).stream()
                 .map(this::toListItem)
                 .toList();
-        return new ExportJobPageResp(items, exportJobMapper.countAll(), page, pageSize);
+        return new ExportJobPageResp(items, exportJobMapper.countAll(statusFilter), page, pageSize);
+    }
+
+    /** 列表接口允许的 status 过滤值白名单（be-td.md 4.6 契约）。 */
+    private static final Set<String> LIST_FILTER_STATUSES =
+            Set.of("PENDING", "RUNNING", "SUCCEEDED", "FAILED", "EXPIRED");
+
+    /** 列表 status 过滤参数归一：空白视为未传；大小写不敏感白名单校验，非法抛 400。 */
+    private static String normalizeStatusFilter(String raw) {
+        String status = ParamUtils.trimToNull(raw);
+        if (status == null) {
+            return null;
+        }
+        String upper = status.toUpperCase(Locale.ROOT);
+        if (!LIST_FILTER_STATUSES.contains(upper)) {
+            throw BusinessException.validation("status 仅支持 PENDING/RUNNING/SUCCEEDED/FAILED/EXPIRED");
+        }
+        return upper;
     }
 
     /** 实体 → 列表行 VO：派生 progress_percent（复用事件口径）与 downloadable（SUCCEEDED 且未过期）。 */

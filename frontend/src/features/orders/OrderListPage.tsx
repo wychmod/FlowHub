@@ -1,5 +1,5 @@
 import { ExportOutlined, FileExcelOutlined, ReloadOutlined } from '@ant-design/icons';
-import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   App as AntdApp,
@@ -34,6 +34,7 @@ import {
   enumLabel,
 } from './constants';
 import { ExportModal, type ExportMode } from './components/ExportModal';
+import { resolveIdempotencyKey, type ExportAttempt } from './idempotency';
 import { OrderFilterForm } from './components/OrderFilterForm';
 import {
   formValuesToFilter,
@@ -68,6 +69,10 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [exportModal, setExportModal] = useState<ExportMode | null>(null);
 
+  // 幂等键生命周期状态：useRef 持有进行中的提交意图（同 payload 重试复用，成功/取消后置 null 失效）
+  const attemptRef = useRef<ExportAttempt | null>(null);
+  const queryClient = useQueryClient();
+
   // 实际生效排序：默认态（null）折算为 DEFAULT_SORT 参与请求与缓存键（两态请求相同可共享缓存）
   const effectiveSort = sort ?? DEFAULT_SORT;
 
@@ -100,12 +105,18 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
     }
   }, [data, isPlaceholderData]);
 
-  // 创建导出任务：幂等键在 mutationFn 内生成，每次明确点击（mutate）均为新 UUID（PRD 7.4.2）
-  const createMutation = useMutation<ExportJobCreated, ApiError, CreateExportJobPayload>({
-    mutationFn: (payload) => createExportJob(payload, crypto.randomUUID()),
+  // 创建导出任务：幂等键在点击「确认创建」时解析——同 payload 重试复用同一 Key，成功后失效（PRD 7.4.2）
+  const createMutation = useMutation<
+    ExportJobCreated,
+    ApiError,
+    { payload: CreateExportJobPayload; idempotencyKey: string }
+  >({
+    mutationFn: ({ payload, idempotencyKey }) => createExportJob(payload, idempotencyKey),
     onSuccess: (job) => {
       setExportModal(null);
-      setSelectedIds([]);
+      attemptRef.current = null; // Key 失效
+      // 创建成功后刷新任务列表缓存（留在本页/稍后进入导出任务页均拿到最新数据），勾选不清空
+      void queryClient.invalidateQueries({ queryKey: ['exportJobs'] });
       modal.success({
         title: '导出任务已创建',
         content: `任务编号 ${job.job_no}，预计导出 ${job.total_rows} 行。`,
@@ -357,8 +368,15 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
           filterTotal={displayData?.total}
           submitting={createMutation.isPending}
           error={createMutation.error}
-          onCancel={() => setExportModal(null)}
-          onSubmit={(payload) => createMutation.mutate(payload)}
+          onCancel={() => {
+            attemptRef.current = null; // 取消：提交意图终结，Key 失效
+            setExportModal(null);
+          }}
+          onSubmit={(payload) => {
+            // 同 payload 重试复用同一幂等键；修改表单（payload 变化）重新生成（PRD 7.4.2）
+            attemptRef.current = resolveIdempotencyKey(attemptRef.current, payload);
+            createMutation.mutate({ payload, idempotencyKey: attemptRef.current.key });
+          }}
         />
       ) : null}
     </Space>

@@ -43,7 +43,7 @@ npm run dev
 | 健康检查 | http://localhost:8080/actuator/health |
 | 订单接口（分页） | http://localhost:8080/api/v1/orders?page=1&page_size=20 |
 | 订单接口（筛选 + 排序） | http://localhost:8080/api/v1/orders?order_status=PAID,SHIPPED&total_amount_min=100&sort=total_amount,desc |
-| 任务列表接口 | http://localhost:8080/api/v1/export-jobs（真实分页，返回进度/下载/错误等派生字段，契约见 be-td.md 4.6） |
+| 任务列表接口 | http://localhost:8080/api/v1/export-jobs（真实分页，可选 `status` 过滤，返回进度/下载/错误等派生字段，契约见 be-td.md 4.6） |
 | 任务创建接口（POST，契约见 be-td.md 4.5） | `POST /api/v1/export-jobs` + `Idempotency-Key` 头，202 受理（Outbox 落库并由分发器发布至 RabbitMQ——Confirm ACK 且无 Returned 才标记已发布；消费者以条件抢占领取执行权，执行体按任务快照 Keyset 分批读取订单、SXSSF 流式写 Excel 至 `export-files/` 并推进 `processed_rows`，写盘完成后按发布协议原子移动为正式文件并登记 SUCCEEDED） |
 | SSE 事件订阅（契约见 be-td.md 4.10） | `GET /api/v1/export-jobs/events`（`text/event-stream`）：`job.progress`/`job.succeeded`/`job.failed`/`heartbeat` 4 类事件，事件 id = `jobId:version`，15s 心跳 |
 | 任务文件下载（fe-td.md 7.1 契约） | `GET /api/v1/export-jobs/{job_id}/download`：仅 SUCCEEDED 且未过期返回文件流（`Content-Disposition` 携带展示文件名），其余状态/过期/缺失/路径污染分别返回 `EXPORT_JOB_NOT_DOWNLOADABLE`(409)/`EXPORT_FILE_EXPIRED`(410)/`EXPORT_JOB_NOT_FOUND`/`EXPORT_FILE_MISSING`/`EXPORT_PATH_INVALID`(404) 结构化错误 |

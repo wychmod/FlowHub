@@ -1,5 +1,6 @@
 package com.example.exportflow.export.service;
 
+import com.example.exportflow.common.web.error.BusinessException;
 import com.example.exportflow.export.dto.ExportJobPageResp;
 import com.example.exportflow.export.vo.ExportJobItemVO;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 导出任务列表接口集成验证（P-4 真实化）：分页查询、创建时间倒序、派生字段
@@ -45,7 +47,7 @@ class ExportJobListTest {
 
     @Test
     void emptyTableReturnsEmptyListAndZeroTotal() {
-        ExportJobPageResp resp = exportJobService.listJobs(1, 10);
+        ExportJobPageResp resp = exportJobService.listJobs(1, 10, null);
 
         assertThat(resp.items()).isEmpty();
         assertThat(resp.total()).isZero();
@@ -59,7 +61,7 @@ class ExportJobListTest {
         insertJob("SUCCEEDED", "B.xlsx", LocalDateTime.now().plusHours(1));
         insertJob("FAILED", "C.xlsx", null);
 
-        ExportJobPageResp resp = exportJobService.listJobs(1, 10);
+        ExportJobPageResp resp = exportJobService.listJobs(1, 10, null);
 
         assertThat(resp.total()).isEqualTo(3);
         // 创建时间倒序：后插入的 C 应排最前；id 倒序稳定排序
@@ -74,13 +76,39 @@ class ExportJobListTest {
         insertJob("RUNNING", "B.xlsx", null);
         insertJob("RUNNING", "C.xlsx", null);
 
-        ExportJobPageResp page1 = exportJobService.listJobs(1, 2);
-        ExportJobPageResp page2 = exportJobService.listJobs(2, 2);
+        ExportJobPageResp page1 = exportJobService.listJobs(1, 2, null);
+        ExportJobPageResp page2 = exportJobService.listJobs(2, 2, null);
 
         assertThat(page1.total()).isEqualTo(3);
         assertThat(page1.items()).hasSize(2);
         assertThat(page2.total()).isEqualTo(3);
         assertThat(page2.items()).hasSize(1);
+    }
+
+    // ==================== 状态筛选 ====================
+
+    @Test
+    void filtersByStatusWithCaseInsensitiveName() {
+        insertJob("RUNNING", "A.xlsx", null);
+        insertJob("SUCCEEDED", "B.xlsx", LocalDateTime.now().plusHours(1));
+        insertJob("FAILED", "C.xlsx", null);
+
+        ExportJobPageResp running = exportJobService.listJobs(1, 10, "running");
+        assertThat(running.total()).isEqualTo(1);
+        assertThat(running.items()).extracting(ExportJobItemVO::status).containsExactly("RUNNING");
+
+        // 只该状态命中，其余被过滤
+        assertThat(exportJobService.listJobs(1, 10, "SUCCEEDED").total()).isEqualTo(1);
+        assertThat(exportJobService.listJobs(1, 10, "FAILED").total()).isEqualTo(1);
+        // 未传 status = 不过滤
+        assertThat(exportJobService.listJobs(1, 10, null).total()).isEqualTo(3);
+    }
+
+    @Test
+    void rejectsUnknownStatusFilter() {
+        assertThatThrownBy(() -> exportJobService.listJobs(1, 10, "FOO"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("status");
     }
 
     // ==================== 派生字段计算 ====================
@@ -92,7 +120,7 @@ class ExportJobListTest {
         long succeeded = insertJob("SUCCEEDED", "B.xlsx", LocalDateTime.now().plusHours(1));
         jdbcTemplate.update("UPDATE export_jobs SET processed_rows = 12000, filter_count = 12000 WHERE id = ?", succeeded);
 
-        List<ExportJobItemVO> items = exportJobService.listJobs(1, 10).items();
+        List<ExportJobItemVO> items = exportJobService.listJobs(1, 10, null).items();
 
         assertThat(items.stream().filter(it -> it.status().equals("RUNNING")).findFirst().orElseThrow().progressPercent())
                 .isEqualTo(50); // 6000/12000，RUNNING 封顶 99
@@ -106,7 +134,7 @@ class ExportJobListTest {
         long expired = insertJob("SUCCEEDED", "B.xlsx", LocalDateTime.now().minusHours(1));
         long running = insertJob("RUNNING", "C.xlsx", null);
 
-        List<ExportJobItemVO> items = exportJobService.listJobs(1, 10).items();
+        List<ExportJobItemVO> items = exportJobService.listJobs(1, 10, null).items();
 
         assertThat(items.stream().filter(it -> it.jobId().equals(succeeded)).findFirst().orElseThrow().downloadable())
                 .isTrue();
@@ -122,7 +150,7 @@ class ExportJobListTest {
         jdbcTemplate.update("UPDATE export_jobs SET version = 7, error_code = 'FILE_GENERATION_FAILED',"
                 + " error_message = 'generation error' WHERE id = ?", failed);
 
-        ExportJobItemVO item = exportJobService.listJobs(1, 10).items().stream()
+        ExportJobItemVO item = exportJobService.listJobs(1, 10, null).items().stream()
                 .filter(it -> it.jobId().equals(failed)).findFirst().orElseThrow();
 
         assertThat(item.version()).isEqualTo(7);
@@ -136,7 +164,7 @@ class ExportJobListTest {
     @Test
     void serializesWireContractFieldNamesForFrontendAlignment() throws Exception {
         insertJob("RUNNING", "A.xlsx", null);
-        ExportJobItemVO item = exportJobService.listJobs(1, 10).items().get(0);
+        ExportJobItemVO item = exportJobService.listJobs(1, 10, null).items().get(0);
 
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(item));
 

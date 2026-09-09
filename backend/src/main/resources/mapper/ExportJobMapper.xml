@@ -59,17 +59,23 @@
         WHERE id = #{jobId}
     </select>
 
-    <!-- 分页查询(导出任务列表)：按创建时间倒序 + id 倒序稳定排序。 -->
+    <!-- 分页查询(导出任务列表)：status 非空时按状态过滤，按创建时间倒序 + id 倒序稳定排序。 -->
     <select id="findPage" resultType="com.example.exportflow.export.entity.ExportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM export_jobs
+        <where>
+            <if test="status != null">status = #{status}</if>
+        </where>
         ORDER BY created_at DESC, id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
-    <!-- 导出任务总数（列表分页 total）。 -->
+    <!-- 导出任务总数（列表分页 total，status 非空时按状态过滤）。 -->
     <select id="countAll" resultType="long">
         SELECT COUNT(*) FROM export_jobs
+        <where>
+            <if test="status != null">status = #{status}</if>
+        </where>
     </select>
 
     <!-- 按幂等键查询（唯一约束保证至多一条）。 -->
