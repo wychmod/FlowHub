@@ -22,7 +22,8 @@ public enum ExportErrorCode implements ErrorCode {
     EXPORT_JOB_NOT_DOWNLOADABLE("EXPORT_JOB_NOT_DOWNLOADABLE", "导出任务尚未完成，无法下载", HttpStatus.CONFLICT),
     EXPORT_FILE_EXPIRED("EXPORT_FILE_EXPIRED", "导出文件已过期，请重新创建导出任务", HttpStatus.GONE),
     EXPORT_FILE_MISSING("EXPORT_FILE_MISSING", "导出文件不存在或已被清理，请重新创建导出任务", HttpStatus.NOT_FOUND),
-    EXPORT_PATH_INVALID("EXPORT_PATH_INVALID", "导出文件路径不合法，请重新创建导出任务", HttpStatus.NOT_FOUND);
+    EXPORT_PATH_INVALID("EXPORT_PATH_INVALID", "导出文件路径不合法，请重新创建导出任务", HttpStatus.NOT_FOUND),
+    EXPORT_JOB_NOT_RETRYABLE("EXPORT_JOB_NOT_RETRYABLE", "导出任务不可重试（仅失败任务可重试，且总执行次数未达上限）", HttpStatus.CONFLICT);
 
     private final String code;
     private final String message;
