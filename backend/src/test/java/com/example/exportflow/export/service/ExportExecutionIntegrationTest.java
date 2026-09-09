@@ -44,8 +44,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * 执行体集成验证：Keyset 读取管道（第 15 章）、SXSSF 写盘（第 17 章）、发布协议成功终态与
- * 补偿收敛（第 18 章）——高水位阻断、批次边界、快照重建、排除 ID、空值防御、发布登记、DB 失败补偿。
+ * 执行体集成验证：Keyset 读取管道、SXSSF 写盘、发布协议成功终态与
+ * 补偿收敛——高水位阻断、批次边界、快照重建、排除 ID、空值防御、发布登记、DB 失败补偿。
  * <p>真实 Mapper + H2 执行真 SQL；直接调用执行服务（消费端链路由 ExportJobConsumerTest 覆盖）。
  */
 @SpringBootTest
@@ -186,7 +186,7 @@ class ExportExecutionIntegrationTest {
         assertThat(Files.exists(exportFileService.resolvePersisted(publishedFilePath(jobId)))).isTrue();
     }
 
-    // ==================== 发布协议（第 18 章）：成功登记与失败补偿 ====================
+    // ==================== 发布协议：成功登记与失败补偿 ====================
 
     @Test
     void filePublishedAndRegisteredOnSuccess() {
@@ -311,7 +311,7 @@ class ExportExecutionIntegrationTest {
         jdbcTemplate.batchUpdate(INSERT_ORDER_SQL, args);
     }
 
-    /** 直插一条 RUNNING 任务（消费链路已由第 14 章测试覆盖，此处绕过抢占直达执行体）。 */
+    /** 直插一条 RUNNING 任务（消费链路已由消费端测试覆盖，此处绕过抢占直达执行体）。 */
     private long insertRunningJob(long maxOrderId, String filterSnapshot) {
         String unique = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         jdbcTemplate.update("""

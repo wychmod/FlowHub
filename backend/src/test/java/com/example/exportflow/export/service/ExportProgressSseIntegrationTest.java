@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 
 /**
- * 第 16 章集成矩阵：进度条件守卫（单调/终态/fail-fast）、version 单调、Redis 降级不阻塞、
+ * 进度集成矩阵：进度条件守卫（单调/终态/fail-fast）、version 单调、Redis 降级不阻塞、
  * SSE 广播与坏连接隔离、事务回滚不广播（AFTER_COMMIT 语义）、SSE 端点异步流。
  * <p>Redis 以 SpyBean 注入受控行为；SSE 连接以 Mockito mock 注入（attach 包级入口）。
  */
@@ -177,7 +177,7 @@ class ExportProgressSseIntegrationTest {
 
     // ==================== 数据准备与查询辅助 ====================
 
-    /** 直插一条 RUNNING 任务（抢占链路由第 14 章测试覆盖），返回自增主键。 */
+    /** 直插一条 RUNNING 任务（抢占链路由消费端测试覆盖），返回自增主键。 */
     private long insertRunningJob(long filterCount) {
         String unique = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         jdbcTemplate.update("""

@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 下载接口契约验证（第 18 章下载规则）：只按 Job 查——SUCCEEDED 且未过期才返回文件流，
+ * 下载接口契约验证（下载规则）：只按 Job 查——SUCCEEDED 且未过期才返回文件流，
  * 状态/过期/缺失/路径污染分别返回结构化错误；受控 exportRoot 指向测试专用临时目录。
  */
 @SpringBootTest

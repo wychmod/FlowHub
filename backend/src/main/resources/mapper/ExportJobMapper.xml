@@ -65,8 +65,8 @@
         WHERE idempotency_key = #{idempotencyKey}
     </select>
 
-    <!-- 进度推进（第 16 章条件守卫）：status 单向防终态写入、processed_rows 单调防旧批回退、
-         heartbeat/lease 续期供第 19 章失联判断；version 递增使 SSE/HTTP 校准可区分新旧。
+    <!-- 进度推进（条件守卫）：status 单向防终态写入、processed_rows 单调防旧批回退、
+         heartbeat/lease 续期供维护服务失联判断；version 递增使 SSE/HTTP 校准可区分新旧。
          受影响 0 行 = 状态已被并发推进或进度回退，调用方须 fail-fast，不得带病继续写文件。 -->
     <update id="updateProgress">
         UPDATE export_jobs
@@ -111,7 +111,7 @@
           AND status = 'RUNNING'
     </update>
 
-    <!-- 成功收敛（第 18 章发布协议第 3 步）：登记产物相对路径/大小与下载截止时间；
+    <!-- 成功收敛（发布协议第 3 步）：登记产物相对路径/大小与下载截止时间；
          status='RUNNING' 单向条件防重复收敛，0 行时调用方须补偿删除已发布文件。 -->
     <update id="markSucceeded">
         UPDATE export_jobs
@@ -126,7 +126,7 @@
           AND status = 'RUNNING'
     </update>
 
-    <!-- 人工重试（第 19 章）：仅 FAILED 且未达尝试上限可重置；清空聚合视图（进度/时间/文件/错误/心跳/租约），
+    <!-- 人工重试：仅 FAILED 且未达尝试上限可重置；清空聚合视图（进度/时间/文件/错误/心跳/租约），
          失败 Attempt 历史保留；新 Outbox 由调用方在同一事务写入，重走可靠投递与条件抢占管道。 -->
     <update id="retry">
         UPDATE export_jobs
@@ -148,7 +148,7 @@
           AND attempt_count &lt; #{maxAttempts}
     </update>
 
-    <!-- 启动/维护恢复（第 19 章）：只收敛「租约已失效（含未写租约）」的 RUNNING——
+    <!-- 启动/维护恢复：只收敛「租约已失效（含未写租约）」的 RUNNING——
          不是死亡证明，是维护服务可合法判定失联的边界；清空租约供重试后重新抢占。 -->
     <update id="recoverExpiredRunning">
         UPDATE export_jobs
@@ -163,7 +163,7 @@
           AND (lease_expires_at IS NULL OR lease_expires_at &lt;= #{now})
     </update>
 
-    <!-- 到期扫描（第 19 章清理）：仅 SUCCEEDED 且已过保留期，走 (status, expired_at) 索引，按到期先后限量处理。 -->
+    <!-- 到期扫描（清理）：仅 SUCCEEDED 且已过保留期，走 (status, expired_at) 索引，按到期先后限量处理。 -->
     <select id="findExpiredSuccess" resultType="com.example.exportflow.export.entity.ExportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM export_jobs
@@ -174,7 +174,7 @@
         LIMIT #{limit}
     </select>
 
-    <!-- 过期收敛（第 19 章）：物理文件删除成功后才允许执行（删除即事实，与第 18 章发布对称）；
+    <!-- 过期收敛：物理文件删除成功后才允许执行（删除即事实，与发布对称）；
          status 条件保证与并发流程互斥，0 行时调用方不发布事件。 -->
     <update id="markExpired">
         UPDATE export_jobs
@@ -185,7 +185,7 @@
           AND status = 'SUCCEEDED'
     </update>
 
-    <!-- 文件引用计数（第 19 章孤儿对账）：正式文件被任何 Job 登记即保留，不按孤儿清理。 -->
+    <!-- 文件引用计数（孤儿对账）：正式文件被任何 Job 登记即保留，不按孤儿清理。 -->
     <select id="countByFilePath" resultType="int">
         SELECT COUNT(*)
         FROM export_jobs

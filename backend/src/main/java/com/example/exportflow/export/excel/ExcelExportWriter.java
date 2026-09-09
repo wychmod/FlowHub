@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * SXSSF 流式 Excel 生成器（第 17 章）。
+ * SXSSF 流式 Excel 生成器。
  * <p>
  * 对外只暴露三步：{@link #open(Path, List)} 打开会话 → {@link WorkbookSession#writeBatch} 逐批写入
  * → {@link WorkbookSession#close} 收尾成文件。POI 细节全部收在内部 WorkBookSession，调用方不用碰 POI。
@@ -137,14 +137,14 @@ public class ExcelExportWriter {
     /**
      * Excel 写入会话：一个会话 = 一个 Workbook = 一个写者，内部持有一整张"订单数据"表。
      * <p>
-     * 并发边界由第 14 章抢占层保证（同一任务同一时刻只有一个执行者），POI 本身不是协调工具。
+     * 并发边界由抢占层保证（同一任务同一时刻只有一个执行者），POI 本身不是协调工具。
      * <p>
      * 必须用 try-with-resources 使用。close 会完成 write → 关流 → close → dispose 的完整收敛：
      * 任一异常保留为首异常，其余异常挂为 suppressed，且无论成败 dispose 都会执行（保证临时文件被清掉）。
      */
     public static final class WorkbookSession implements AutoCloseable {
 
-        private final Path target;            // 输出文件的目标路径（业务临时文件，第 18 章会原子移动成正式文件）
+        private final Path target;            // 输出文件的目标路径（业务临时文件，发布时原子移动成正式文件）
         private final List<String> columnKeys; // 本次实际要写的列 key 列表（顺序即列顺序）
         private final SXSSFWorkbook workbook;  // 流式工作簿（内存只留最近 ROW_WINDOW 行）
         private final SXSSFSheet sheet;        // 当前唯一的 Sheet
@@ -192,7 +192,7 @@ public class ExcelExportWriter {
             return rowCount;
         }
 
-        /** 业务临时文件路径（此时内容已完整写入、但尚未发布为正式文件，第 18 章做原子移动）。 */
+        /** 业务临时文件路径（此时内容已完整写入、但尚未发布为正式文件，发布时做原子移动）。 */
         public Path target() {
             return target;
         }

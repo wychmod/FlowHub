@@ -40,7 +40,7 @@
           AND status = 'RUNNING'
     </update>
 
-    <!-- 启动/维护恢复（第 19 章）：与 Job 恢复使用同一「租约失效」前置条件（IN 子查询），
+    <!-- 启动/维护恢复：与 Job 恢复使用同一「租约失效」前置条件（IN 子查询），
          Attempt 先行收敛——不会把仍有有效租约的尝试误写成失败。 -->
     <update id="recoverExpiredRunning">
         UPDATE export_job_attempts
@@ -56,7 +56,7 @@
           )
     </update>
 
-    <!-- 活跃租约判断（第 19 章孤儿对账）：尝试 RUNNING 且 Job RUNNING 且租约未到期，
+    <!-- 活跃租约判断（孤儿对账）：尝试 RUNNING 且 Job RUNNING 且租约未到期，
          该次尝试的文件可能正被 Worker 使用，不得按时间直接清理。 -->
     <select id="countRunningWithValidLease" resultType="int">
         SELECT COUNT(*)
@@ -70,7 +70,7 @@
           AND j.lease_expires_at &gt; #{now}
     </select>
 
-    <!-- 文件引用计数（第 19 章孤儿对账）：失败尝试的产物证据被引用即保留，不按「孤儿」清理。 -->
+    <!-- 文件引用计数（孤儿对账）：失败尝试的产物证据被引用即保留，不按「孤儿」清理。 -->
     <select id="countByFilePath" resultType="int">
         SELECT COUNT(*)
         FROM export_job_attempts

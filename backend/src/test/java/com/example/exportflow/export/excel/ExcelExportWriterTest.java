@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Writer 契约单测（第 17 章）：用真实 XSSF 重新打开输出文件断言——表头随所选列、
+ * Writer 契约单测：用真实 XSSF 重新打开输出文件断言——表头随所选列、
  * 公式前缀转义为文本、金额为可计算数值、冻结/筛选生效、未知列在创建文件前拒绝。
  * <p>「文件能重新打开且内容正确」是文件系统的最终验收，优于断言代码执行到最后一行。
  */

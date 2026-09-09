@@ -19,7 +19,7 @@ public record ExportJobEntity(
         Long filterCount,             // 创建时命中预计行数（进度分母）
         String filterSnapshot,        // OrderCriteria 序列化 JSON（执行端直存直取重建取数条件）
         String selectedOrderIds,      // 勾选模式 ID 集合 JSON（FILTER 模式为空数组）
-        String selectedColumns,       // 导出列白名单序 JSON（第 17 章 Excel 表头）
+        String selectedColumns,       // 导出列白名单序 JSON（Excel 表头）
         String requestedFileName,     // 清洗后的显示文件名
 
         // ==== 执行反馈（执行期推进；INSERT 省略，走数据库默认值或 NULL）====
@@ -30,7 +30,7 @@ public record ExportJobEntity(
         String errorMessage,          // 失败原因（截断至列宽 500）
         String filePath,              // 成功产物相对路径（发布协议登记，下载/清理经受控解析）
         Long fileSizeBytes,           // 成功产物字节数（展示与审计证据）
-        LocalDateTime expiredAt,      // 允许下载截止时间（保留期后清理并推进 EXPIRED，第 19 章）
+        LocalDateTime expiredAt,      // 允许下载截止时间（保留期后清理并推进 EXPIRED）
 
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {

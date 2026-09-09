@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 导出进度服务（第 16 章）：MySQL 事实源推进 → 发布变化事件 → 尽力写 Redis 投影。
+ * 导出进度服务：MySQL 事实源推进 → 发布变化事件 → 尽力写 Redis 投影。
  * <p>
  * 进度推进的成功证据是数据库条件更新结果（0 行 fail-fast）；Redis 投影可失败，仅降级日志，
  * 绝不影响任务推进——事实源始终是 MySQL。
@@ -71,7 +71,7 @@ public class ExportProgressService {
                 job.filterCount() == null ? 0 : job.filterCount(), LocalDateTime.now());
     }
 
-    /** 删除任务进度投影（第 19 章 EXPIRED 收敛后调用；失败仅降级日志，不影响已完成的文件与状态收敛）。 */
+    /** 删除任务进度投影（EXPIRED 收敛后调用；失败仅降级日志，不影响已完成的文件与状态收敛）。 */
     public void deleteProjection(long jobId) {
         try {
             redis.delete(PROJECTION_KEY_PREFIX + jobId);

@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 维护服务集成验证（第 19 章）：恢复只收敛租约失效的 RUNNING（不误伤活跃执行）、人工重试
+ * 维护服务集成验证：恢复只收敛租约失效的 RUNNING（不误伤活跃执行）、人工重试
  * 保留 Attempt 历史 + 同事务新 Outbox + 重试上限、过期清理「删除成功才 EXPIRED」与路径防腐、
  * 孤儿文件三维对账（宽限期 + 活跃租约 + 引用检查）。
  * <p>真实 Mapper + H2 执行真 SQL；exportRoot 用测试专用临时目录隔离。

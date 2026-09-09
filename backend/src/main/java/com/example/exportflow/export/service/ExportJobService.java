@@ -39,7 +39,7 @@ import java.util.UUID;
 
 /**
  * 导出任务服务：创建入口（幂等判断 + 业务校验 + 同事务写 export_jobs/outbox_events）、列表查询，
- * 执行侧状态管理（条件抢占 claimPendingJob、成功/失败终态收敛）与成功文件下载解析（第 18 章）。
+ * 执行侧状态管理（条件抢占 claimPendingJob、成功/失败终态收敛）与成功文件下载解析。
  * <p>
  * 不发布 RabbitMQ 消息、不写 Redis、不写入/删除文件——文件的分配、发布、解析与删除一律经
  * ExportFileService 受控边界（下载前仅对已受控解析的路径做只读的存在性/大小检查）。
@@ -54,10 +54,10 @@ public class ExportJobService {
     private static final DateTimeFormatter JOB_NO_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter DEFAULT_FILE_NAME_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /** 尝试上限：达到后不再可抢占，等待人工重试（第 19 章）。 */
+    /** 尝试上限：达到后不再可抢占，等待人工重试。 */
     private static final int MAX_ATTEMPTS = 3;
 
-    /** 抢占时预置的租约时长（分钟）：抢占成功后执行端失联的恢复信号（第 19 章消费）。 */
+    /** 抢占时预置的租约时长（分钟）：抢占成功后执行端失联的恢复信号（维护服务消费）。 */
     private static final int LEASE_MINUTES = 5;
 
     /** error_message 列宽（VARCHAR(500)），超长截断防 SQL 失败。 */
@@ -194,7 +194,7 @@ public class ExportJobService {
     }
 
     /**
-     * 成功收敛：Job 与当前 RUNNING Attempt 同事务置 SUCCEEDED 并登记产物（第 18 章发布协议第 3 步）。
+     * 成功收敛：Job 与当前 RUNNING Attempt 同事务置 SUCCEEDED 并登记产物（发布协议第 3 步）。
      * <p>
      * UPDATE 带 status='RUNNING' 单向条件；Job 0 行抛异常回滚，调用方须补偿删除已发布文件
      * （文件先成功、数据库失败时用户从未见过 SUCCEEDED）。
@@ -214,7 +214,7 @@ public class ExportJobService {
     }
 
     /**
-     * 解析可下载文件（第 18 章下载规则）：仅 SUCCEEDED 且未过期的任务放行，
+     * 解析可下载文件（下载规则）：仅 SUCCEEDED 且未过期的任务放行，
      * 按 DB 登记的相对路径重过受控校验后才返回；文件丢失不重新生成（重建会改变
      * 原 Attempt 的数据边界与证据），返回明确错误让用户重新创建任务。
      */
@@ -265,7 +265,7 @@ public class ExportJobService {
     }
 
     /**
-     * 人工重试（第 19 章）：FAILED → PENDING 条件重置，并同事务写入新 Outbox 事件重走可靠投递管道。
+     * 人工重试：FAILED → PENDING 条件重置，并同事务写入新 Outbox 事件重走可靠投递管道。
      * <p>
      * 失败 Attempt 历史一条不删（回答「曾怎样失败、何时再次执行」）；重试本身不执行任务——
      * 消费端仍需经历条件抢占，attempt_count 在抢占时递增（不是重试点击次数）。

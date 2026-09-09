@@ -32,7 +32,7 @@ public class ExportFileService {
 
     /** 发布文件名与临时文件同号同目录（同文件系统是 ATOMIC_MOVE 的实现前提）。 */
     private static final String PUBLISHED_SUFFIX = ".xlsx";
-    /** 目录分层日期（UTC）：同一天发布的文件聚在同一目录，供第 19 章清理圈定候选范围。 */
+    /** 目录分层日期（UTC）：同一天发布的文件聚在同一目录，供维护清理圈定候选范围。 */
     private static final DateTimeFormatter DATE_DIR = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
     /** 尝试产物命名（attempt-N.tmp|xlsx）：孤儿对账按它解析 jobId/attemptNo 身份。 */
     private static final Pattern ATTEMPT_FILE_PATTERN = Pattern.compile("attempt-(\\d+)\\.(tmp|xlsx)");
@@ -64,7 +64,7 @@ public class ExportFileService {
     }
 
     /**
-     * 发布（第 18 章发布协议第 2 步）：Workbook 关闭后调用，ATOMIC_MOVE 将临时文件瞬间切换为 attempt-N.xlsx。
+     * 发布（发布协议第 2 步）：Workbook 关闭后调用，ATOMIC_MOVE 将临时文件瞬间切换为 attempt-N.xlsx。
      * 不支持原子移动时原样抛出、不降级为普通复制（半可见的正式文件比失败更不可解释），由执行体收敛 FAILED 并清理。
      *
      * @return 发布结果三元组：relativePath 供 DB 登记（正斜杠相对路径）、sizeBytes 为正式文件字节大小、
@@ -102,8 +102,8 @@ public class ExportFileService {
     }
 
     /**
-     * 补偿/清理删除已发布正式文件（执行体补偿与第 19 章过期清理共用）。
-     * 校验在受控 root 内后才删；删除失败仅记日志不抛出，孤儿由第 19 章回收。
+     * 补偿/清理删除已发布正式文件（执行体补偿与过期清理共用）。
+     * 校验在受控 root 内后才删；删除失败仅记日志不抛出，孤儿由维护服务回收。
      *
      * @return false = 路径非法或删除失败（调用方保持数据库状态原样，下一轮再试）；文件不存在视为已清理
      */

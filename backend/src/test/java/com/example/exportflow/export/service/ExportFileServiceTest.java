@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * 受控文件边界单测（第 18 章）：exportRoot 提纯、路径双层防腐（normalize + 符号链接/toRealPath）、
+ * 受控文件边界单测：exportRoot 提纯、路径双层防腐（normalize + 符号链接/toRealPath）、
  * 原子移动发布与补偿删除。符号链接用例在无权限环境自动跳过（assumeTrue）。
  */
 class ExportFileServiceTest {

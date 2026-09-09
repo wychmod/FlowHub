@@ -37,7 +37,7 @@ public interface ExportJobAttemptMapper {
                       @Param("now") LocalDateTime now);
 
     /**
-     * 启动/维护恢复（第 19 章）：仅收敛「其 Job 已租约失效」的 RUNNING 尝试（与 Job 同一前置条件，
+     * 启动/维护恢复：仅收敛「其 Job 已租约失效」的 RUNNING 尝试（与 Job 同一前置条件，
      * Attempt 先行保证不误伤仍有有效租约的执行）。
      *
      * @return 本次收敛的尝试数
@@ -46,12 +46,12 @@ public interface ExportJobAttemptMapper {
                               @Param("errorCode") String errorCode,
                               @Param("errorMessage") String errorMessage);
 
-    /** 活跃租约判断（第 19 章孤儿对账）：该次尝试仍 RUNNING 且其 Job 租约有效 → 文件可能正在被使用。 */
+    /** 活跃租约判断（孤儿对账）：该次尝试仍 RUNNING 且其 Job 租约有效 → 文件可能正在被使用。 */
     int countRunningWithValidLease(@Param("jobId") long jobId,
                                    @Param("attemptNo") int attemptNo,
                                    @Param("now") LocalDateTime now);
 
-    /** 正式文件引用计数（第 19 章孤儿对账）：失败尝试的文件证据被引用即保留。 */
+    /** 正式文件引用计数（孤儿对账）：失败尝试的文件证据被引用即保留。 */
     int countByFilePath(@Param("filePath") String filePath);
 
     /** 查询当前 RUNNING 尝试的序号（执行体分配 attempt 临时文件名），无 RUNNING 尝试返回 null。 */
