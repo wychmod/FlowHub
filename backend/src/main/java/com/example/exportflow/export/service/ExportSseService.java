@@ -69,11 +69,17 @@ public class ExportSseService {
     /** 任务变化监听：DB 事实提交后（或无事务的进度路径）重读 Job 再广播，杜绝伪状态广播。 */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void jobChanged(ExportJobChanged changed) {
-        ExportJobEntity job = exportJobMapper.selectById(changed.jobId());
-        if (job == null) {
-            return;
+        // 尽力通知绝不向提交方抛异常：AFTER_COMMIT 阶段的异常会穿透回发布者——
+        // 成功事务提交后的广播失败若外泄，会误触发执行体对已登记文件的补偿删除
+        try {
+            ExportJobEntity job = exportJobMapper.selectById(changed.jobId());
+            if (job == null) {
+                return;
+            }
+            broadcast(eventName(job.status()), job.id() + ":" + job.version(), ExportJobEventPayload.from(job));
+        } catch (Exception ex) {
+            log.warn("sse_broadcast_failed job_id={} reason={}", changed.jobId(), ex.toString());
         }
-        broadcast(eventName(job.status()), job.id() + ":" + job.version(), ExportJobEventPayload.from(job));
     }
 
     /** 供测试注入受控连接（生产入口为 connect()）。 */

@@ -28,6 +28,9 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -36,9 +39,10 @@ import java.util.UUID;
 
 /**
  * 导出任务服务：创建入口（幂等判断 + 业务校验 + 同事务写 export_jobs/outbox_events）、列表查询，
- * 以及执行侧状态管理（条件抢占 claimPendingJob、失败收敛 markFailed）。
+ * 执行侧状态管理（条件抢占 claimPendingJob、成功/失败终态收敛）与成功文件下载解析（第 18 章）。
  * <p>
- * 不发布 RabbitMQ 消息、不写 Redis、不生成文件——Outbox 落库成功即入口职责完成。
+ * 不发布 RabbitMQ 消息、不写 Redis、不写入/删除文件——文件的分配、发布、解析与删除一律经
+ * ExportFileService 受控边界（下载前仅对已受控解析的路径做只读的存在性/大小检查）。
  */
 @Service
 public class ExportJobService {
@@ -46,6 +50,7 @@ public class ExportJobService {
     private static final Logger log = LoggerFactory.getLogger(ExportJobService.class);
 
     private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_SUCCEEDED = "SUCCEEDED";
     private static final DateTimeFormatter JOB_NO_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter DEFAULT_FILE_NAME_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -62,24 +67,30 @@ public class ExportJobService {
     private final ExportJobAttemptMapper exportJobAttemptMapper;
     private final OutboxEventMapper outboxEventMapper;
     private final ExportOrderMapper exportOrderMapper;
+    private final ExportFileService exportFileService;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher events;
     private final long filterMaxRows;
+    private final long retentionHours;
 
     public ExportJobService(ExportJobMapper exportJobMapper,
                             ExportJobAttemptMapper exportJobAttemptMapper,
                             OutboxEventMapper outboxEventMapper,
                             ExportOrderMapper exportOrderMapper,
+                            ExportFileService exportFileService,
                             ObjectMapper objectMapper,
                             ApplicationEventPublisher events,
-                            @Value("${export.filter-max-rows:500000}") long filterMaxRows) {
+                            @Value("${export.filter-max-rows:500000}") long filterMaxRows,
+                            @Value("${export.files.retention-hours:24}") long retentionHours) {
         this.exportJobMapper = exportJobMapper;
         this.exportJobAttemptMapper = exportJobAttemptMapper;
         this.outboxEventMapper = outboxEventMapper;
         this.exportOrderMapper = exportOrderMapper;
+        this.exportFileService = exportFileService;
         this.objectMapper = objectMapper;
         this.events = events;
         this.filterMaxRows = filterMaxRows;
+        this.retentionHours = retentionHours;
     }
 
     /** 查询导出任务分页列表（当前返回空列表）。 */
@@ -115,6 +126,9 @@ public class ExportJobService {
                 writeJson(selectedOrderIds(command)),
                 writeJson(columnKeys(command)),
                 command.fileName() != null ? command.fileName() : defaultFileName(now),
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -176,6 +190,77 @@ public class ExportJobService {
         }
         log.warn("export_job_failed job_id={} error_code={} error_message={} trace_id={}",
                 jobId, errorCode, message, TraceIdSupport.currentTraceId());
+    }
+
+    /**
+     * 成功收敛：Job 与当前 RUNNING Attempt 同事务置 SUCCEEDED 并登记产物（第 18 章发布协议第 3 步）。
+     * <p>
+     * UPDATE 带 status='RUNNING' 单向条件；Job 0 行抛异常回滚，调用方须补偿删除已发布文件
+     * （文件先成功、数据库失败时用户从未见过 SUCCEEDED）。
+     */
+    @Transactional
+    public void markSucceeded(long jobId, String filePath, long fileSizeBytes) {
+        LocalDateTime now = LocalDateTime.now();
+        if (exportJobMapper.markSucceeded(jobId, filePath, fileSizeBytes, now, now.plusHours(retentionHours)) != 1) {
+            throw new IllegalStateException("成功终态推进失败（任务非 RUNNING），job_id=" + jobId);
+        }
+        // Attempt 仅审计记录（与 markFailed 对称：Job 是状态事实源，无 RUNNING 行不影响收敛事实）
+        exportJobAttemptMapper.markSucceeded(jobId, filePath, fileSizeBytes, now);
+        // DB 事实落定后发布变化事件（AFTER_COMMIT 提交后广播 job.succeeded）
+        events.publishEvent(new ExportJobChanged(jobId));
+        log.info("export_job_succeeded job_id={} file_path={} file_size_bytes={} trace_id={}",
+                jobId, filePath, fileSizeBytes, TraceIdSupport.currentTraceId());
+    }
+
+    /**
+     * 解析可下载文件（第 18 章下载规则）：仅 SUCCEEDED 且未过期的任务放行，
+     * 按 DB 登记的相对路径重过受控校验后才返回；文件丢失不重新生成（重建会改变
+     * 原 Attempt 的数据边界与证据），返回明确错误让用户重新创建任务。
+     */
+    public DownloadableExportFile getDownloadableFile(long jobId) {
+        ExportJobEntity job = exportJobMapper.selectById(jobId);
+        if (job == null) {
+            throw new BusinessException(ExportErrorCode.EXPORT_JOB_NOT_FOUND);
+        }
+        // 文件存在只是发布过程的一部分，Job 状态才是向用户公开下载能力的业务事实
+        if (!STATUS_SUCCEEDED.equals(job.status())) {
+            throw new BusinessException(ExportErrorCode.EXPORT_JOB_NOT_DOWNLOADABLE);
+        }
+        if (job.expiredAt() != null && job.expiredAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ExportErrorCode.EXPORT_FILE_EXPIRED);
+        }
+        if (job.filePath() == null || job.filePath().isBlank()) {
+            throw new BusinessException(ExportErrorCode.EXPORT_FILE_MISSING);
+        }
+        Path file;
+        try {
+            file = exportFileService.resolvePersisted(job.filePath());
+        } catch (IllegalArgumentException ex) {
+            // DB 记录被污染（绝对路径/.. /符号链接）：结构化错误而非 500
+            throw new BusinessException(ExportErrorCode.EXPORT_PATH_INVALID);
+        }
+        if (!Files.exists(file)) {
+            throw new BusinessException(ExportErrorCode.EXPORT_FILE_MISSING);
+        }
+        // 大小优先用发布时登记的证据值，登记缺失时按磁盘实际补齐
+        long sizeBytes = job.fileSizeBytes() != null ? job.fileSizeBytes() : fileSizeQuietly(file);
+        return new DownloadableExportFile(file, sizeBytes, displayNameOf(job));
+    }
+
+    /** 展示文件名 = 创建时清洗过的 file_name（补 .xlsx 后缀），仅用于下载响应，不参与磁盘路径。 */
+    private static String displayNameOf(ExportJobEntity job) {
+        String name = job.requestedFileName() == null || job.requestedFileName().isBlank()
+                ? "export-" + job.jobNo()
+                : job.requestedFileName();
+        return name.endsWith(".xlsx") ? name : name + ".xlsx";
+    }
+
+    private static long fileSizeQuietly(Path file) {
+        try {
+            return Files.size(file);
+        } catch (IOException ex) {
+            return 0L;
+        }
     }
 
     /** 幂等命中判定：请求内容一致复用原任务，不一致返回 409 冲突。 */
