@@ -1,6 +1,7 @@
 package com.example.exportflow.export.mq;
 
 import com.example.exportflow.common.web.trace.TraceIdSupport;
+import com.example.exportflow.export.excel.ExcelExportWriter;
 import com.example.exportflow.export.mapper.ExportJobAttemptMapper;
 import com.example.exportflow.export.service.ExportExecutionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +19,9 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,6 +62,9 @@ class ExportJobConsumerTest {
     @SpyBean
     private ExportJobAttemptMapper exportJobAttemptMapper;
 
+    @SpyBean
+    private ExcelExportWriter excelExportWriter;
+
     private Channel channel;
 
     @BeforeEach
@@ -95,14 +101,15 @@ class ExportJobConsumerTest {
     @Test
     void executionFailureConvergesJobAndAttemptFailed(CapturedOutput output) throws Exception {
         long jobId = insertPendingJob();
-        // 不定制 execute：真实执行壳失败，收敛为可查询事实后正常 Ack
+        // 定制 open 抛出：真实执行壳在写盘入口失败，收敛为可查询事实后正常 Ack
+        doThrow(new IOException("disk full")).when(excelExportWriter).open(any(Path.class), any());
 
         exportJobConsumer.onMessage(message(jobId, 1L, null), channel);
 
         verify(channel).basicAck(1L, false);
         assertThat(jobStatus()).isEqualTo("FAILED");
         assertThat(jobColumn("error_code")).isEqualTo(ExportExecutionService.ERROR_CODE_FILE_GENERATION);
-        assertThat((String) jobColumn("error_message")).contains("尚未实现");
+        assertThat((String) jobColumn("error_message")).contains("disk full");
         assertThat(jobColumn("finished_at")).isNotNull();
         assertThat(attemptRows()).isEqualTo(1);
         assertThat(attemptColumn("status")).isEqualTo("FAILED");

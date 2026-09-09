@@ -23,10 +23,10 @@ import java.util.List;
 
 /**
  * 导出执行服务：消费端抢占成功后调用，按任务快照 Keyset 批量读取订单、SXSSF 流式写 Excel，
- * 并把业务失败收敛为可查询事实。
+ * 按发布协议原子移动为正式文件并收敛成功终态，业务失败收敛为可查询事实。
  * <p>
  * 数据读取管道见第 15 章；进度推进/通知见第 16 章（ExportProgressService）；
- * 流式写文件见第 17 章（ExcelExportWriter）；文件发布与成功终态随第 18 章接入。
+ * 流式写文件见第 17 章（ExcelExportWriter）；文件发布与成功终态见第 18 章（ExportFileService/发布协议）。
  */
 @Service
 public class ExportExecutionService {
@@ -78,6 +78,8 @@ public class ExportExecutionService {
     public void execute(long jobId) {
         try {
             runJob(jobId);
+            // 成功终态后按 DB 事实刷新投影（SUCCEEDED → percent 100，第 16 章投影规则）
+            exportProgressService.refreshProjection(jobId);
         } catch (Exception ex) {
             String message = ExceptionUtils.messageOrTypeName(ex);
             exportJobService.markFailed(jobId, ERROR_CODE_FILE_GENERATION, message);
@@ -88,10 +90,11 @@ public class ExportExecutionService {
     }
 
     /**
-     * 执行体：加载任务快照 → Keyset 分批读取 → SXSSF 流式写业务临时文件。
+     * 执行体：加载任务快照 → Keyset 分批读取 → SXSSF 流式写业务临时文件 → 发布协议收敛成功终态。
      * <p>
      * 游标推进顺序即失败屏障：查询 → writeBatch（本批真实进入 Workbook）→ 累计 → 推进 lastId → 落进度；
-     * 空批或不足一批结束。写盘失败删除半成品临时文件；成功终态（发布/下载）随第 18 章接入。
+     * 空批或不足一批结束。发布协议固定顺序（第 18 章）：原子移动发布 → MySQL 事务登记成功 →
+     * 失败补偿删除（文件先成功、数据库失败时用户从未见过 SUCCEEDED）。
      */
     private void runJob(long jobId) throws IOException {
         ExportJobEntity job = exportJobMapper.selectById(jobId);
@@ -100,9 +103,11 @@ public class ExportExecutionService {
         }
         OrderCriteria criteria = readCriteria(jobId, job.filterSnapshot());
         List<String> columns = readColumns(jobId, job.selectedColumns());
-        Path temporary = exportFileService.temporaryPath(jobId, attemptNo(jobId));
+        int attemptNo = attemptNo(jobId);
+        Path temporary = exportFileService.temporaryPath(jobId, attemptNo);
         long processed = 0;
         long lastId = 0;
+        PublishedFile published = null;
         try {
             try (ExcelExportWriter.WorkbookSession workbook = excelExportWriter.open(temporary, columns)) {
                 while (true) {
@@ -124,11 +129,18 @@ public class ExportExecutionService {
             }
             log.info("export_job_file_written job_id={} processed={} file={} trace_id={}",
                     jobId, processed, temporary, TraceIdSupport.currentTraceId());
-            throw new IllegalStateException("成功终态尚未实现（第 18 章），job_id=" + jobId
-                    + "，已生成 " + processed + " 行临时文件 " + temporary.getFileName());
+            // 发布协议：先原子移动发布文件，再同事务提交成功状态；顺序不可颠倒
+            published = exportFileService.publish(temporary, attemptNo);
+            temporary = null; // 所有权转移：临时文件已被移动，后续失败只补偿正式文件
+            exportJobService.markSucceeded(jobId, published.relativePath(), published.sizeBytes());
         } catch (Exception ex) {
-            // 半成品不遗留：写盘失败与「终态未实现」占位失败都必须清理业务临时文件
-            exportFileService.deleteQuietly(temporary);
+            // 失败补偿：已发布未登记的正式文件不留孤儿；半成品临时文件一并清理
+            if (published != null) {
+                exportFileService.deletePublished(published.absolutePath());
+            }
+            if (temporary != null) {
+                exportFileService.deleteQuietly(temporary);
+            }
             throw ex;
         }
     }

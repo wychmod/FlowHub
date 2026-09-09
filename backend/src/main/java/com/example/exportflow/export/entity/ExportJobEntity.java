@@ -27,6 +27,9 @@ public record ExportJobEntity(
         Long processedRows,           // 已成功推进的行数（条件守卫单调递增）
         String errorCode,             // 失败错误码（如 FILE_GENERATION_FAILED）
         String errorMessage,          // 失败原因（截断至列宽 500）
+        String filePath,              // 成功产物相对路径（发布协议登记，下载/清理经受控解析）
+        Long fileSizeBytes,           // 成功产物字节数（展示与审计证据）
+        LocalDateTime expiredAt,      // 允许下载截止时间（保留期后清理并推进 EXPIRED，第 19 章）
 
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {

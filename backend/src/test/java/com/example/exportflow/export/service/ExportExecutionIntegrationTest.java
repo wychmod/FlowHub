@@ -6,6 +6,7 @@ import com.example.exportflow.order.query.OrderCriteria;
 import com.example.exportflow.order.query.SortDirection;
 import com.example.exportflow.order.query.SortField;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -13,19 +14,29 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -33,12 +44,36 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * 执行体 Keyset 读取管道集成验证（第 15 章）：高水位阻断新增订单、批次边界游标推进、
- * 快照重建完整生效（含状态/渠道/订单号，对应教程审计点）、排除 ID 与空值防御、快照 round-trip。
+ * 执行体集成验证：Keyset 读取管道（第 15 章）、SXSSF 写盘（第 17 章）、发布协议成功终态与
+ * 补偿收敛（第 18 章）——高水位阻断、批次边界、快照重建、排除 ID、空值防御、发布登记、DB 失败补偿。
  * <p>真实 Mapper + H2 执行真 SQL；直接调用执行服务（消费端链路由 ExportJobConsumerTest 覆盖）。
  */
 @SpringBootTest
 class ExportExecutionIntegrationTest {
+
+    /** 测试专用 exportRoot：隔离于默认目录，避免测试产物落入 backend/export-files 与跨运行残留。 */
+    private static final Path FILE_DIR;
+
+    static {
+        try {
+            FILE_DIR = Files.createTempDirectory("export-execution-test");
+        } catch (IOException ex) {
+            throw new ExceptionInInitializerError(ex);
+        }
+    }
+
+    @DynamicPropertySource
+    static void fileProps(DynamicPropertyRegistry registry) {
+        registry.add("export.files.dir", () -> FILE_DIR.toString());
+    }
+
+    @AfterAll
+    static void cleanFileDir() throws IOException {
+        try (Stream<Path> walk = Files.walk(FILE_DIR)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(path -> path.toFile().delete());
+        }
+    }
+
 
     private static final String INSERT_ORDER_SQL = """
             INSERT INTO orders (id, order_no, customer_name, status, order_status, sales_channel,
@@ -50,7 +85,10 @@ class ExportExecutionIntegrationTest {
     @Autowired
     private ExportExecutionService exportExecutionService;
 
-    @Autowired
+    @SpyBean
+    private ExportJobService exportJobService;
+
+    @SpyBean
     private ExportFileService exportFileService;
 
     @Autowired
@@ -85,7 +123,7 @@ class ExportExecutionIntegrationTest {
 
         // 空条件全靠 id <= max_order_id_at_create 挡住 999：读到 2 行而非 3 行
         assertThat(processedRows(jobId)).isEqualTo(2);
-        assertThat(jobStatus(jobId)).isEqualTo("FAILED");
+        assertThat(jobStatus(jobId)).isEqualTo("SUCCEEDED");
     }
 
     // ==================== 批次边界：游标推进不重不漏 ====================
@@ -137,30 +175,84 @@ class ExportExecutionIntegrationTest {
     // ==================== 空值防御：空条件 + 空结果 ====================
 
     @Test
-    void emptySnapshotWithNoRowsConvergesWithoutProgress() {
+    void emptySnapshotSucceedsWithHeaderOnlyFile() {
         long jobId = insertRunningJob(0L, "{}");
 
         exportExecutionService.execute(jobId);
 
-        // 空批即刻结束：不炸、无进度、按「尚未实现」收敛 FAILED（直插任务无 Attempt 记录，断言 Job 侧）
+        // 空批即刻结束：0 行任务同样走完整发布协议（表头-only 文件发布 + SUCCEEDED 登记）
         assertThat(processedRows(jobId)).isZero();
-        assertThat(jobStatus(jobId)).isEqualTo("FAILED");
-        assertThat(jobErrorCode(jobId)).isEqualTo(ExportExecutionService.ERROR_CODE_FILE_GENERATION);
+        assertThat(jobStatus(jobId)).isEqualTo("SUCCEEDED");
+        assertThat(Files.exists(exportFileService.resolvePersisted(publishedFilePath(jobId)))).isTrue();
     }
 
-    // ==================== 文件生成（第 17 章 writeBatch 扩展点） ====================
+    // ==================== 发布协议（第 18 章）：成功登记与失败补偿 ====================
 
     @Test
-    void fileRowsMatchProcessedRowsAndTempCleanedOnFailureConvergence() {
+    void filePublishedAndRegisteredOnSuccess() {
         insertOrders(1, 3, "EF-", "PAID", "WEB");
         long jobId = insertRunningJob(3L, "{}");
 
         exportExecutionService.execute(jobId);
 
-        // 读取 + 写盘全部成功：processedRows 与写入行数一致；失败收敛删除半成品（成功发布随第 18 章）
+        // 读取 + 写盘 + 发布全链路：行数一致，产物以 attempt-N.xlsx 登记相对路径与字节大小
         assertThat(processedRows(jobId)).isEqualTo(3L);
+        assertThat(jobStatus(jobId)).isEqualTo("SUCCEEDED");
+        assertThat(publishedFilePath(jobId)).endsWith("/" + jobId + "/attempt-0.xlsx");
+        Path published = exportFileService.resolvePersisted(publishedFilePath(jobId));
+        assertThat(Files.exists(published)).isTrue();
+        assertThat(fileSizeBytes(jobId)).isPositive();
+    }
+
+    @Test
+    void dbSucceedFailureCompensatesByDeletingPublishedFile() throws Exception {
+        insertOrders(1, 2, "EF-", "PAID", "WEB");
+        long jobId = insertRunningJob(2L, "{}");
+        AtomicReference<Path> publishedPath = new AtomicReference<>();
+        doAnswer(inv -> {
+            PublishedFile published = (PublishedFile) inv.callRealMethod();
+            publishedPath.set(published.absolutePath());
+            return published;
+        }).when(exportFileService).publish(any(Path.class), anyInt());
+        // 模拟第 3 步 MySQL 成功事务失败：文件已发布但状态提交不上
+        doThrow(new RuntimeException("db down")).when(exportJobService)
+                .markSucceeded(anyLong(), anyString(), anyLong());
+
+        exportExecutionService.execute(jobId);
+
+        // 补偿收敛：Job 走 FAILED，已发布未登记的正式文件被删除，不留孤儿
         assertThat(jobStatus(jobId)).isEqualTo("FAILED");
-        assertThat(Files.exists(exportFileService.temporaryPath(jobId, 0))).isFalse();
+        assertThat(jobErrorCode(jobId)).isEqualTo(ExportExecutionService.ERROR_CODE_FILE_GENERATION);
+        assertThat(Files.exists(publishedPath.get())).isFalse();
+    }
+
+    @Test
+    void unsupportedAtomicMoveFailsWithoutPublishing() throws Exception {
+        insertOrders(1, 1, "EF-", "PAID", "WEB");
+        long jobId = insertRunningJob(1L, "{}");
+        Path temporary = exportFileService.temporaryPath(jobId, 0);
+        doThrow(new AtomicMoveNotSupportedException(temporary.toString(), null, "atomic move unsupported"))
+                .when(exportFileService).publish(any(Path.class), anyInt());
+
+        exportExecutionService.execute(jobId);
+
+        // 不静默降级：任务失败、半成品清理、不产出任何 xlsx
+        assertThat(jobStatus(jobId)).isEqualTo("FAILED");
+        assertThat(Files.exists(temporary)).isFalse();
+        assertThat(Files.exists(temporary.resolveSibling("attempt-0.xlsx"))).isFalse();
+    }
+
+    @Test
+    void markSucceededOnTerminalJobThrowsWithoutStateRewrite() {
+        long jobId = insertRunningJob(0L, "{}");
+        jdbcTemplate.update("UPDATE export_jobs SET status = 'FAILED' WHERE id = ?", jobId);
+
+        assertThatIllegalStateException().isThrownBy(() ->
+                exportJobService.markSucceeded(jobId, "2026-09-09/" + jobId + "/attempt-1.xlsx", 10L));
+
+        // 单向条件守卫：终态不可改写，产物路径也未登记
+        assertThat(jobStatus(jobId)).isEqualTo("FAILED");
+        assertThat(publishedFilePath(jobId)).isNull();
     }
 
     @Test
@@ -244,5 +336,15 @@ class ExportExecutionIntegrationTest {
     private String jobErrorCode(long jobId) {
         return jdbcTemplate.queryForObject(
                 "SELECT error_code FROM export_jobs WHERE id = ?", String.class, jobId);
+    }
+
+    private String publishedFilePath(long jobId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT file_path FROM export_jobs WHERE id = ?", String.class, jobId);
+    }
+
+    private Long fileSizeBytes(long jobId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT file_size_bytes FROM export_jobs WHERE id = ?", Long.class, jobId);
     }
 }
