@@ -71,6 +71,16 @@ public class ExportProgressService {
                 job.filterCount() == null ? 0 : job.filterCount(), LocalDateTime.now());
     }
 
+    /** 删除任务进度投影（第 19 章 EXPIRED 收敛后调用；失败仅降级日志，不影响已完成的文件与状态收敛）。 */
+    public void deleteProjection(long jobId) {
+        try {
+            redis.delete(PROJECTION_KEY_PREFIX + jobId);
+        } catch (RuntimeException ex) {
+            log.warn("redis_progress_delete_failed job_id={} reason={}",
+                    jobId, ExceptionUtils.messageOrTypeName(ex));
+        }
+    }
+
     /** 尽力写投影：失败仅记录降级日志（redis_progress_write_failed），绝不向调用方抛异常。 */
     private void cache(long jobId, String status, long processedRows, long totalRows, LocalDateTime now) {
         try {

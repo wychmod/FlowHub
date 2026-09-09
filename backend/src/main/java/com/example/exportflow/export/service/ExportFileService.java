@@ -12,6 +12,12 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * 导出文件服务（第 17/18 章）：受控 exportRoot 内的临时文件分配、原子发布与受控路径解析。
@@ -28,6 +34,8 @@ public class ExportFileService {
     private static final String PUBLISHED_SUFFIX = ".xlsx";
     /** 目录分层日期（UTC）：同一天发布的文件聚在同一目录，供第 19 章清理圈定候选范围。 */
     private static final DateTimeFormatter DATE_DIR = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
+    /** 尝试产物命名（attempt-N.tmp|xlsx）：孤儿对账按它解析 jobId/attemptNo 身份。 */
+    private static final Pattern ATTEMPT_FILE_PATTERN = Pattern.compile("attempt-(\\d+)\\.(tmp|xlsx)");
 
     private final Path exportRoot;
 
@@ -94,15 +102,80 @@ public class ExportFileService {
     }
 
     /**
-     * 补偿删除已发布但未登记 DB 的正式文件（markSucceeded 事务失败时执行体调用）。
-     * 校验在受控 root 内后才删；删除失败仅记日志不抛出，孤儿由第 19 章回收。无返回值。
+     * 补偿/清理删除已发布正式文件（执行体补偿与第 19 章过期清理共用）。
+     * 校验在受控 root 内后才删；删除失败仅记日志不抛出，孤儿由第 19 章回收。
+     *
+     * @return false = 路径非法或删除失败（调用方保持数据库状态原样，下一轮再试）；文件不存在视为已清理
      */
-    public void deletePublished(Path absolutePath) {
+    public boolean deletePublished(Path absolutePath) {
         try {
             requireWithinRoot(absolutePath);
             Files.deleteIfExists(absolutePath);
+            return true;
         } catch (IOException | IllegalArgumentException ex) {
             log.warn("export_published_file_delete_failed path={} reason={}", absolutePath, ex.toString());
+            return false;
+        }
+    }
+
+    /** 扫描宽限期前的候选临时文件（&lt;日期&gt;/&lt;jobId&gt;/attempt-N.tmp）；是否孤儿由调用方做租约校验。 */
+    public List<OrphanCandidate> temporaryCandidatesOlderThan(Instant threshold) {
+        return scanCandidates(threshold, ".tmp");
+    }
+
+    /** 扫描宽限期前的候选正式文件（&lt;日期&gt;/&lt;jobId&gt;/attempt-N.xlsx）；是否孤儿由调用方做引用与租约校验。 */
+    public List<OrphanCandidate> finalCandidatesOlderThan(Instant threshold) {
+        return scanCandidates(threshold, ".xlsx");
+    }
+
+    /**
+     * 遍历受控根收集命名与时间合格的候选；walk 默认不跟随目录符号链接，扫描范围天然锁定在根内。
+     * 只圈定不删除——三维校验（租约/引用）由调用方完成后执行删除。
+     */
+    private List<OrphanCandidate> scanCandidates(Instant threshold, String suffix) {
+        List<OrphanCandidate> candidates = new ArrayList<>();
+        try (Stream<Path> stream = Files.walk(exportRoot)) {
+            // walk 产出目录与文件混合的流：先按类型排除，防「恰好叫 attempt-N 的目录」混入候选
+            stream.filter(Files::isRegularFile)
+                    .forEach(path -> parseCandidate(path, threshold, suffix).ifPresent(candidates::add));
+        } catch (IOException ex) {
+            // 扫描失败降级为空候选：宁可本轮漏删下一轮再扫，也不带残缺名单继续
+            log.warn("export_candidate_scan_failed root={} reason={}", exportRoot, ex.toString());
+        }
+        return candidates;
+    }
+
+    /**
+     * 逐文件过三关：命名关（attempt-N.{suffix}）→ 结构关（父目录为纯数字 jobId）→ 时间关（已过宽限期）。
+     * 任何一关不过或元数据读取失败都按非候选处理，单文件异常不中断整轮扫描。
+     */
+    private Optional<OrphanCandidate> parseCandidate(Path path, Instant threshold, String suffix) {
+        // 命名关：正则只认 attempt-N 后缀，同时提取出 attemptNo
+        String fileName = path.getFileName() == null ? "" : path.getFileName().toString();
+        Matcher matcher = ATTEMPT_FILE_PATTERN.matcher(fileName);
+        if (!matcher.matches() || !fileName.endsWith(suffix)) {
+            return Optional.empty();
+        }
+        try {
+            // 结构关：必须位于 <日期>/<纯数字 jobId>/ 一层之下，外来路径与手工放置的文件不进候选
+            Path jobIdDir = path.getParent();
+            String jobIdSegment = jobIdDir == null ? "" : jobIdDir.getFileName().toString();
+            if (!jobIdSegment.chars().allMatch(Character::isDigit)) {
+                return Optional.empty();
+            }
+            // 时间关：宽限期内的文件可能是活跃 Worker 正在写/刚发布的产物，一律跳过
+            Instant modifiedAt = Files.getLastModifiedTime(path).toInstant();
+            if (modifiedAt.isAfter(threshold)) {
+                return Optional.empty();
+            }
+            // 相对路径统一正斜杠，与 DB 登记格式一致（引用检查按字符串比对）
+            String relativePath = exportRoot.relativize(path).toString().replace('\\', '/');
+            return Optional.of(new OrphanCandidate(path, relativePath,
+                    Long.parseLong(jobIdSegment), Integer.parseInt(matcher.group(1)), modifiedAt));
+        } catch (IOException | NumberFormatException ex) {
+            // 元数据取不到（如竞态中被删除）按非候选处理：误放行的代价远高于漏删
+            log.warn("export_candidate_parse_failed path={} reason={}", path, ex.toString());
+            return Optional.empty();
         }
     }
 
