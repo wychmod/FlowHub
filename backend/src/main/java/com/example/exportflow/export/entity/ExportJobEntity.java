@@ -25,6 +25,7 @@ public record ExportJobEntity(
         // ==== 执行反馈（执行期推进；INSERT 省略，走数据库默认值或 NULL）====
         Long version,                 // 状态变更序号：SSE 事件 id = jobId:version（前端版本栅栏）
         Long processedRows,           // 已成功推进的行数（条件守卫单调递增）
+        Integer attemptCount,         // 已开始的真实执行次数（抢占时递增，重试上限判断依据）
         String errorCode,             // 失败错误码（如 FILE_GENERATION_FAILED）
         String errorMessage,          // 失败原因（截断至列宽 500）
         String filePath,              // 成功产物相对路径（发布协议登记，下载/清理经受控解析）
