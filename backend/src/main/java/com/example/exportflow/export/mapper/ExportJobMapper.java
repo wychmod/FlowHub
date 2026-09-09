@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 导出任务数据访问接口（MyBatis 实现，SQL 见 resources/mapper/ExportJobMapper.xml）。
@@ -69,4 +70,38 @@ public interface ExportJobMapper {
                       @Param("fileSizeBytes") long fileSizeBytes,
                       @Param("now") LocalDateTime now,
                       @Param("expiredAt") LocalDateTime expiredAt);
+
+    /**
+     * 人工重试（第 19 章）：FAILED → PENDING 并清空聚合视图（进度/时间/文件/错误/心跳/租约），
+     * Attempt 历史保留；attempt_count 在抢占时递增，不是重试点击次数。
+     *
+     * @return 1 = 重置成功；0 = 非 FAILED 或已达尝试上限（调用方转业务错误）
+     */
+    int retry(@Param("jobId") long jobId,
+              @Param("maxAttempts") int maxAttempts,
+              @Param("now") LocalDateTime now);
+
+    /**
+     * 启动/维护恢复（第 19 章）：仅收敛「租约已失效（含未写租约）」的 RUNNING 为 FAILED，
+     * 写入稳定错误码保留中断事实，清空租约供重试后重新抢占。
+     *
+     * @return 本次收敛的任务数
+     */
+    int recoverExpiredRunning(@Param("now") LocalDateTime now,
+                              @Param("errorCode") String errorCode,
+                              @Param("errorMessage") String errorMessage);
+
+    /** 到期扫描（第 19 章清理）：SUCCEEDED 且已过保留期，按到期时间升序限量返回。 */
+    List<ExportJobEntity> findExpiredSuccess(@Param("now") LocalDateTime now,
+                                             @Param("limit") int limit);
+
+    /**
+     * 过期收敛（第 19 章）：物理文件删除成功后才允许执行（删除即事实）。
+     *
+     * @return 1 = 收敛成功；0 = 任务已不处于 SUCCEEDED（已被其他流程推进，不发事件）
+     */
+    int markExpired(@Param("jobId") long jobId, @Param("now") LocalDateTime now);
+
+    /** 正式文件引用计数（第 19 章孤儿对账）：被任何 Job 登记即保留。 */
+    int countByFilePath(@Param("filePath") String filePath);
 }

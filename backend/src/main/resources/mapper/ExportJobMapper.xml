@@ -41,6 +41,7 @@
         requested_file_name   AS requestedFileName,
         version,
         processed_rows        AS processedRows,
+        attempt_count         AS attemptCount,
         error_code            AS errorCode,
         error_message         AS errorMessage,
         file_path             AS filePath,
@@ -124,4 +125,70 @@
         WHERE id = #{jobId}
           AND status = 'RUNNING'
     </update>
+
+    <!-- 人工重试（第 19 章）：仅 FAILED 且未达尝试上限可重置；清空聚合视图（进度/时间/文件/错误/心跳/租约），
+         失败 Attempt 历史保留；新 Outbox 由调用方在同一事务写入，重走可靠投递与条件抢占管道。 -->
+    <update id="retry">
+        UPDATE export_jobs
+        SET status = 'PENDING',
+            processed_rows = 0,
+            started_at = NULL,
+            finished_at = NULL,
+            expired_at = NULL,
+            file_path = NULL,
+            file_size_bytes = NULL,
+            error_code = NULL,
+            error_message = NULL,
+            last_heartbeat_at = NULL,
+            lease_expires_at = NULL,
+            updated_at = #{now},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'FAILED'
+          AND attempt_count &lt; #{maxAttempts}
+    </update>
+
+    <!-- 启动/维护恢复（第 19 章）：只收敛「租约已失效（含未写租约）」的 RUNNING——
+         不是死亡证明，是维护服务可合法判定失联的边界；清空租约供重试后重新抢占。 -->
+    <update id="recoverExpiredRunning">
+        UPDATE export_jobs
+        SET status = 'FAILED',
+            finished_at = #{now},
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            lease_expires_at = NULL,
+            updated_at = #{now},
+            version = version + 1
+        WHERE status = 'RUNNING'
+          AND (lease_expires_at IS NULL OR lease_expires_at &lt;= #{now})
+    </update>
+
+    <!-- 到期扫描（第 19 章清理）：仅 SUCCEEDED 且已过保留期，走 (status, expired_at) 索引，按到期先后限量处理。 -->
+    <select id="findExpiredSuccess" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+        SELECT <include refid="jobColumns"/>
+        FROM export_jobs
+        WHERE status = 'SUCCEEDED'
+          AND expired_at IS NOT NULL
+          AND expired_at &lt;= #{now}
+        ORDER BY expired_at ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 过期收敛（第 19 章）：物理文件删除成功后才允许执行（删除即事实，与第 18 章发布对称）；
+         status 条件保证与并发流程互斥，0 行时调用方不发布事件。 -->
+    <update id="markExpired">
+        UPDATE export_jobs
+        SET status = 'EXPIRED',
+            updated_at = #{now},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'SUCCEEDED'
+    </update>
+
+    <!-- 文件引用计数（第 19 章孤儿对账）：正式文件被任何 Job 登记即保留，不按孤儿清理。 -->
+    <select id="countByFilePath" resultType="int">
+        SELECT COUNT(*)
+        FROM export_jobs
+        WHERE file_path = #{filePath}
+    </select>
 </mapper>
