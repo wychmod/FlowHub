@@ -41,3 +41,14 @@ export:
   # 测试用隔离文件根：避免各测试上下文的启动恢复/孤儿对账扫描真实 export-files 目录（dev 产物/测试残留）。
   files:
     dir: ${java.io.tmpdir}/exportflow-test-files
+
+# 导入模块测试覆盖：Outbox 分发 / SSE 心跳 / 维护调度静默，错误报告缓冲收敛（直接方法调用验证）。
+import:
+  outbox:
+    dispatch-delay-ms: 3600000
+  sse:
+    heartbeat-ms: 3600000
+  cleanup-cron: "-"
+  # 测试用隔离文件根：启动恢复/孤儿对账扫描隔离 tmp 目录，不碰 dev 的 import-files 产物。
+  files:
+    dir: ${java.io.tmpdir}/exportflow-test-import-files

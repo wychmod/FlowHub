@@ -17,9 +17,15 @@ public record OutboxEventEntity(
         String traceId,             // 创建请求的 trace_id，消费侧延续链路
         LocalDateTime createdAt) {  // 事件创建时间，分发器按它轮询分发
 
-    /** 聚合类型：导出任务（当前唯一聚合根）。 */
+    /** 聚合类型：导出任务。 */
     public static final String AGGREGATE_TYPE_EXPORT_JOB = "EXPORT_JOB";
 
-    /** 事件类型：导出任务已创建（当前唯一事件）。 */
+    /** 事件类型：导出任务已创建。 */
     public static final String EVENT_TYPE_EXPORT_JOB_CREATED = "EXPORT_JOB_CREATED";
+
+    /** 聚合类型：导入任务（复用同一张 outbox 表，按聚合类型区分消费方）。 */
+    public static final String AGGREGATE_TYPE_IMPORT_JOB = "IMPORT_JOB";
+
+    /** 事件类型：导入任务已创建。 */
+    public static final String EVENT_TYPE_IMPORT_JOB_CREATED = "IMPORT_JOB_CREATED";
 }
