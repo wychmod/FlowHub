@@ -65,6 +65,10 @@ public class ImportErrorReportWriter {
                 row.createCell(2).setCellValue(entry.column());
                 row.createCell(3).setCellValue(entry.reason());
             }
+            // 必须把已构建的 workbook 序列化到输出流，否则 out 从未被写入 → 落盘 0 字节
+            workbook.write(out);
+            // 清理 SXSSF 滑动窗口产生的磁盘临时文件（与导出 WorkbookSession write→close→dispose 一致）
+            workbook.dispose();
             return true;
         }
     }
