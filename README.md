@@ -1,8 +1,8 @@
 # ExportFlow
 
-企业级异步导出中心（订单筛选 → 异步 Excel 导出 → 进度推送 → 下载）。
+企业级异步导出中心（订单筛选 → 异步 Excel 导出 → 进度推送 → 下载；订单 Excel 批量导入）。
 
-当前仓库为按 [docs/prd.md](docs/prd.md)、[docs/be-td.md](docs/be-td.md)、[docs/fe-td.md](docs/fe-td.md) 搭建的教学/演示项目：订单条件查询（后端接口 + 前端完整列表页，含筛选、排序、勾选与导出入口）与导出全链路（创建受理 → Outbox 可靠投递 → RabbitMQ 消费端条件抢占与 Attempt 审计 → 执行体按任务快照 Keyset 分批读取订单 → SXSSF 流式写 Excel → 进度状态分层通知（MySQL 事实源 + Redis 投影 + SSE 广播 + HTTP 校准）→ 文件发布协议（临时文件原子移动发布 + 成功终态登记 + 受控下载）→ 恢复与清理（租约到期收敛 + 人工重试 + 过期文件下架 + 孤儿对账））已实现，剩余为任务列表/详情真实化与前端任务页。
+当前仓库为按 [docs/prd.md](docs/prd.md)、[docs/be-td.md](docs/be-td.md)、[docs/fe-td.md](docs/fe-td.md) 搭建的教学/演示项目：订单条件查询（后端接口 + 前端完整列表页，含筛选、排序、勾选与导出入口）、导出全链路（创建受理 → Outbox 可靠投递 → RabbitMQ 消费端条件抢占与 Attempt 审计 → 执行体按任务快照 Keyset 分批读取订单 → SXSSF 流式写 Excel → 进度状态分层通知（MySQL 事实源 + Redis 投影 + SSE 广播 + HTTP 校准）→ 文件发布协议（临时文件原子移动发布 + 成功终态登记 + 受控下载）→ 恢复与清理（租约到期收敛 + 人工重试 + 过期文件下架 + 孤儿对账））以及订单 Excel 导入后端（模板下载 + 文件/结构/行级三层校验 + 异步导入任务复刻 Outbox/消费/进度/SSE 管道 + 错误报告下载 + PARTIAL 部分成功语义）已实现，剩余为任务列表/详情真实化、前端任务页与导入任务前端页。
 
 ## 技术栈
 
@@ -50,6 +50,12 @@ npm run dev
 | SSE 事件订阅（契约见 be-td.md 4.10） | `GET /api/v1/export-jobs/events`（`text/event-stream`）：`job.progress`/`job.succeeded`/`job.failed`/`heartbeat` 4 类事件，事件 id = `jobId:version`，15s 心跳 |
 | 任务文件下载（fe-td.md 7.1 契约） | `GET /api/v1/export-jobs/{job_id}/download`：仅 SUCCEEDED 且未过期返回文件流（`Content-Disposition` 携带展示文件名），其余状态/过期/缺失/路径污染分别返回 `EXPORT_JOB_NOT_DOWNLOADABLE`(409)/`EXPORT_FILE_EXPIRED`(410)/`EXPORT_JOB_NOT_FOUND`/`EXPORT_FILE_MISSING`/`EXPORT_PATH_INVALID`(404) 结构化错误 |
 | 任务人工重试（be-td.md 4.8 契约） | `POST /api/v1/export-jobs/{job_id}/retry`：仅 FAILED 且未达尝试上限（3 次）可重试，202 受理回 PENDING（同事务新 Outbox 事件重走可靠投递）；越限/状态不符返回 `EXPORT_JOB_NOT_RETRYABLE`(409) |
+| 订单导入模板下载 | `GET /api/v1/import-jobs/template`：9 列纯表头模板（与导出格式互逆一致，不放示例行），含下拉数据验证、金额列 `0.00` 预设格式与填写说明 |
+| 订单导入上传受理 | `POST /api/v1/import-jobs`：multipart 字段 `file`，.xlsx 且 ≤10MB；文件级/结构级校验同步 400 拒绝，行级校验异步（设计见 [docs/order-import-design.md](docs/order-import-design.md)） |
+| 订单导入任务列表 | `GET /api/v1/import-jobs`：分页 + 可选 `status` 过滤（含 PARTIAL），返回 progress_percent/error_report_available/error_summary 派生字段 |
+| 订单导入任务 SSE | `GET /api/v1/import-jobs/events`：`import.progress`/`import.succeeded`/`import.partial`/`import.failed`/`heartbeat` 5 类事件，事件 id=`jobId:version`，15s 心跳 |
+| 订单导入错误报告下载 | `GET /api/v1/import-jobs/{job_id}/error-report`：仅 PARTIAL 且登记了报告路径时返回 xlsx |
+| 订单导入人工重试 | `POST /api/v1/import-jobs/{job_id}/retry`：仅 FAILED 且未达尝试上限（3 次），202 受理回 PENDING（同事务新 Outbox） |
 
 后端生成的 Excel 落入 `backend/export-files/` 受控根目录（已被 `.gitignore` 忽略），内部按 `<UTC 日期>/<jobId>/attempt-N.tmp|xlsx` 三层定位：写入期只针对 `.tmp` 临时文件，发布时同文件系统 `ATOMIC_MOVE` 原子切换为 `.xlsx` 正式文件。
 
@@ -120,7 +126,7 @@ export-flow/
             └── exports/       #   导出任务页（列表 + SSE 实时进度 + 下载/重试 + useExportEvents Hook + ConnectionBadge）
 ```
 
-与 TD 文档的差异（均为后续迭代内容）：后端 `mq/` 包已随 Outbox 分发器与消费者落地（`excel/`、`schedule/` 等在引入 POI 时创建）；订单查询已接入真实 MyBatis（动态 SQL + record 构造器自动映射 + V8 索引），`InMemoryOrderMapperImpl` 仅保留为行为基准供对齐测试；前端 `useExportEvents.ts`/导出任务页/ConnectionBadge 已随 SSE 进度推送交付实现。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`）。
+与 TD 文档的差异（均为后续迭代内容）：后端 `mq/` 包已随 Outbox 分发器与消费者落地（`excel/`、`schedule/` 等在引入 POI 时创建）；订单查询已接入真实 MyBatis（动态 SQL + record 构造器自动映射 + V8 索引），`InMemoryOrderMapperImpl` 仅保留为行为基准供对齐测试；前端 `useExportEvents.ts`/导出任务页/ConnectionBadge 已随 SSE 进度推送交付实现。后端已接入 MySQL 数据源与 Flyway（`spring.datasource` + `spring.flyway`，迁移脚本置于 `backend/src/main/resources/db/migration/`，导入模块新增 V9 建 `import_jobs`/`import_job_attempts`）。订单导入后端已落地（独立 `orderimport/` 模块，Flyway V9 + 独立 RabbitMQ 拓扑 `import.job.*`，前端导入任务页尚未开发）。
 
 ## 已实现的最小案例
 
@@ -137,6 +143,7 @@ export-flow/
 - **SXSSF 流式 Excel 生成（第 17 章）**：`ExcelExportWriter` + `WorkbookSession`（`export/excel/`）封装全部 POI 细节——`open`（列白名单二次复核、`SXSSFWorkbook(100)` 滑动窗口 + 压缩临时文件、表头/冻结首行/自动筛选/列宽、金额 `0.00` 样式单例复用）→ `writeBatch`（文本经 `safeText` 公式注入防护、金额写 NUMERIC 数值、时间固定格式）→ `close`（`write → 关流 → close → dispose` 链式收敛 + suppressed exception）；业务临时文件由 `ExportFileService` 在受控根目录内分配（attempt 序号查 RUNNING Attempt），写盘失败删除半成品、不虚假推进游标与进度。设计见 [docs/export-sxssf-writer-notes.md](docs/export-sxssf-writer-notes.md)。
 - **文件发布协议与安全下载（第 18 章）**：`ExportFileService` 为受控文件边界——exportRoot 启动期提纯（`toAbsolutePath().normalize()` → `createDirectories` → `toRealPath()`）、层级目录 `<UTC 日期>/<jobId>/attempt-N`、路径双层防腐（文本层 normalize 拒绝 `..` 与根组件，物理层逐段符号链接检查 + `toRealPath` 验真）；执行体收敛顺序为「写完 `.tmp` → `publish()` 同文件系统 `ATOMIC_MOVE` 发布为 `.xlsx`（不支持原子移动不降级、任务失败）→ `markSucceeded` 同事务置 Job/Attempt SUCCEEDED 并回填 `file_path`/`file_size_bytes`/`finished_at`/`expired_at`（保留期 `export.files.retention-hours` 默认 24h）→ 数据库失败补偿删除未登记文件」；下载接口 `GET /api/v1/export-jobs/{job_id}/download` 只按 Job 查（SUCCEEDED 且未过期 → `resolvePersisted` 受控解析 → 文件流 + RFC 5987 展示文件名），文件丢失不重新生成、路径污染返回结构化错误。设计见 [docs/export-file-publishing-notes.md](docs/export-file-publishing-notes.md)。
 - **恢复与清理（第 19 章）**：`ExportMaintenanceService` 启动恢复只收敛「租约已失效（含未写租约）」的 RUNNING 为 FAILED(`SERVICE_RESTARTED`)——Attempt 先行、Job 收尾同一前置条件，不自动重跑、不误伤活跃执行；人工重试 `POST /{job_id}/retry`（FAILED→PENDING + 同事务新 Outbox，失败 Attempt 证据保留，`attempt_count<3` 上限）；过期清理「文件删除成功才 markExpired EXPIRED」（路径非法/删除失败保持 SUCCEEDED 下轮再试）+ Redis 投影删除；孤儿文件三维对账（宽限期 1h + 活跃租约校验 + Job/Attempt 引用检查）；`export.cleanup-cron` 默认每小时。设计见 [docs/export-recovery-cleanup-notes.md](docs/export-recovery-cleanup-notes.md)。
+- **订单 Excel 导入后端（第 V9~V17 章/B1-B17）**：独立模块 `orderimport/` 复刻导出全链路——`GET /api/v1/import-jobs/template` 模板下载（`ImportTemplateWriter` 内存 byte[]，纯表头不放示例行 + 下拉校验 + 金额列 `0.00` 预设格式 + 填写说明）；`POST /api/v1/import-jobs` 上传受理，三层校验：文件级（.xlsx 后缀 + PK 魔数 + ≤10MB）与结构级（`ExcelImportReader` POI SAX 流式轻扫，数据 Sheet 名「订单数据」+ 表头恰好 9 列（多列/缺列/名称/顺序不符均拒绝）/空文件/≤10 万行）同步 400 拒绝，行级校验异步；执行侧 `ImportRowValidator` 逐行校验（枚举/金额 `compareTo`/严格文本时间 `uuuu-MM-dd HH:mm:ss`/公式注入防护）+ 文件内 HashSet 查重 + `orders.order_no` 唯一约束冲突预查与 DuplicateKey 逐行降级；`ImportExecutionService` SAX 流式读 + 批入库 + `ImportProgressService` 进度推进，skipped==0 收敛 SUCCEEDED、否则 `ImportErrorReportWriter` 生成错误报告后收敛 PARTIAL（DATABASE 失败补偿删除报告）；`ImportOutboxDispatcher`/`ImportRabbitConfig`/`ImportJobConsumer`/`ImportSseService`/`ImportMaintenanceService` 复刻可靠投递、条件抢占、5 类 SSE 事件、启动恢复与过期清理/孤儿对账；状态机 `PENDING→RUNNING→SUCCEEDED|PARTIAL|FAILED→EXPIRED`，PARTIAL 为部分成功终态不可重试。上传原件存 `<import-files>/<UTC日期>/<jobNo>/upload.xlsx`，错误报告 `errors-attempt-N.xlsx`。设计见 [docs/order-import-design.md](docs/order-import-design.md)；前端「导入任务」页（F1-F5）尚未实现。
 - **前端数据流**：`requestJson` 统一解析 Envelope（2xx 非 Envelope 抛 `Invalid API envelope`，错误统一抛 `ApiError`，携带 message/code/status/traceId/fieldErrors）→ react-query 管理请求缓存 → antd Table 服务端分页 + dayjs 时间格式化；订单 API 层已就绪完整筛选/排序参数序列化（时间用本地格式，无时区后缀）。
 - **前端订单列表页**：8 项条件筛选（草稿与已提交严格分离，输入不触发请求）、订单号/金额/下单时间三列表头三态排序（以响应回显对齐）、跨页勾选（上限 1000 条）、「导出已选 / 导出筛选结果」配置弹窗与创建请求（`Idempotency-Key` 头 + 勾选/筛选两种 selection 模式；筛选导出且存在勾选时提供「排除已勾选的 N 条订单」复选框（默认选中），走 `excluded_order_ids` 反选契约，排除列表空时字段折叠不出现）；查询失败保留上次数据与全部用户意图。方案见 [docs/order-page-fe/](docs/order-page-fe/)。
 - **前端界面主题与防抖动**：antd theme token 定制（深色 Sider 品牌区 + 白色顶栏动态页题 + Card 分区布局）；表格启用固定列宽（`tableLayout: fixed`）、固定表体高度（`scroll.y` 内部滚动）与 `scrollbar-gutter: stable` 滚动条占位，配合 react-query `placeholderData: keepPreviousData` 平滑过渡，翻页/排序/筛选时页面零抖动。
@@ -175,3 +182,4 @@ HTTP 请求边界补全计划见 [docs/export-http-boundary-plan.md](docs/export
 2. 导出任务闭环补全：文件发布、成功终态、下载接口、崩溃恢复、人工重试、过期清理、任务列表（P-4 真实化）均已实现（见 [docs/export-file-publishing-notes.md](docs/export-file-publishing-notes.md) 与 [docs/export-recovery-cleanup-notes.md](docs/export-recovery-cleanup-notes.md)）；后续为任务详情接口真实化（be-td.md 4.6-4.10、6-9）。
 3. 进度推送前端消费：`useExportEvents` + SSE 事件消费 + 轮询降级（be-td.md 10、fe-td.md 6；开发计划见 [docs/export-sse-design.md](docs/export-sse-design.md)）——已随前端导出任务页交付并完成端到端联调。
 4. 前端任务中心：导出任务列表、进度展示（SSE + 轮询降级）、下载与重试入口（fe-td.md 6-8）——已实现；后续为筛选条件 URL 同步与路由引入。
+5. 订单导入前端：「导入任务」页（模板下载 + 上传受理 + 实时进度 SSE + 错误报告下载 + 人工重试入口，设计 F1-F5）尚未实现，后端已就绪可对接。
