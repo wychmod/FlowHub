@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单导入任务 MyBatis 实现。
+
+  说明：
+  1. INSERT 省略 version 与执行态列（processed_rows/attempt_count 等），走数据库默认值或 NULL，
+     上传原件 file_path 与 total_rows 随创建写入；
+  2. 查询列显式别名为驼峰，配合 arg-name-based-constructor-auto-mapping 按构造器参数名
+     装配 ImportJobEntity record。
+-->
+<mapper namespace="com.example.exportflow.orderimport.mapper.ImportJobMapper">
+
+    <!-- 创建导入任务（初始状态固定 PENDING，时间由应用写入）。 -->
+    <insert id="insert">
+        INSERT INTO import_jobs (
+            job_no, status, file_name, file_path, total_rows, created_at
+        ) VALUES (
+            #{jobNo}, #{status}, #{fileName}, #{filePath}, #{totalRows}, #{createdAt}
+        )
+    </insert>
+
+    <!-- 创建态 + 执行反馈列清单（驼峰别名，配合构造器自动映射装配 ImportJobEntity record）。 -->
+    <sql id="jobColumns">
+        id,
+        job_no                AS jobNo,
+        status,
+        file_name             AS fileName,
+        file_path             AS filePath,
+        total_rows            AS totalRows,
+        processed_rows        AS processedRows,
+        succeeded_rows        AS succeededRows,
+        skipped_rows          AS skippedRows,
+        error_report_path     AS errorReportPath,
+        error_summary         AS errorSummary,
+        version,
+        attempt_count         AS attemptCount,
+        started_at            AS startedAt,
+        last_heartbeat_at     AS lastHeartbeatAt,
+        lease_expires_at      AS leaseExpiresAt,
+        finished_at           AS finishedAt,
+        expired_at            AS expiredAt,
+        error_code            AS errorCode,
+        error_message         AS errorMessage,
+        created_at            AS createdAt
+    </sql>
+
+    <!-- 按主键查询（执行器加载任务快照）。 -->
+    <select id="selectById" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+        SELECT <include refid="jobColumns"/>
+        FROM import_jobs
+        WHERE id = #{jobId}
+    </select>
+
+    <!-- 按任务编号查询（创建后取回自增 id 供 Outbox aggregate_id 与响应使用）。 -->
+    <select id="selectByJobNo" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+        SELECT <include refid="jobColumns"/>
+        FROM import_jobs
+        WHERE job_no = #{jobNo}
+    </select>
+
+    <!-- 分页查询(导入任务列表)：status 非空时按状态过滤，按创建时间倒序 + id 倒序稳定排序。 -->
+    <select id="findPage" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+        SELECT <include refid="jobColumns"/>
+        FROM import_jobs
+        <where>
+            <if test="status != null">status = #{status}</if>
+        </where>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 导入任务总数（列表分页 total，status 非空时按状态过滤）。 -->
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM import_jobs
+        <where>
+            <if test="status != null">status = #{status}</if>
+        </where>
+    </select>
+
+    <!-- 进度推进（条件守卫）：status 单向防终态写入、processed_rows 单调防旧批回退、
+         heartbeat/lease 续期供维护服务失联判断；成功/跳过计数取调用方累计值单调落库。
+         受影响 0 行 = 状态被并发推进或进度回退，调用方须 fail-fast。 -->
+    <update id="updateProgress">
+        UPDATE import_jobs
+        SET processed_rows = #{processedRows},
+            succeeded_rows = #{succeededRows},
+            skipped_rows = #{skippedRows},
+            last_heartbeat_at = #{now},
+            lease_expires_at = #{leaseExpiresAt},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'RUNNING'
+          AND processed_rows &lt;= #{processedRows}
+    </update>
+
+    <!-- 条件抢占：WHERE 声明只允许从 PENDING 转换，数据库原子判断+更新，
+         受影响行数即执行权裁决（1 抢到 / 0 重复投递或已被抢占或达上限）。
+         清空上一轮遗留的错误报告引用与计数（attempt_no 由 Attempt 表继续递增），
+         version 递增供 SSE/HTTP 状态校准。 -->
+    <update id="claimPending">
+        UPDATE import_jobs
+        SET status = 'RUNNING',
+            processed_rows = 0,
+            succeeded_rows = 0,
+            skipped_rows = 0,
+            error_report_path = NULL,
+            error_summary = NULL,
+            attempt_count = attempt_count + 1,
+            started_at = #{now},
+            last_heartbeat_at = #{now},
+            lease_expires_at = #{leaseExpiresAt},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'PENDING'
+          AND attempt_count &lt; #{maxAttempts}
+    </update>
+
+    <!-- 收敛失败：status='RUNNING' 单向条件防重复收敛（终态不可再改写）。 -->
+    <update id="markFailed">
+        UPDATE import_jobs
+        SET status = 'FAILED',
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            finished_at = #{now},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
+    <!-- 全成功收敛：RUNNING → SUCCEEDED（无错误报告，成功计数已随进度落库），
+         保留期从完成起算（expiredAt = now + retentionHours）供过期清理。 -->
+    <update id="markSucceeded">
+        UPDATE import_jobs
+        SET status = 'SUCCEEDED',
+            finished_at = #{now},
+            expired_at = #{expiredAt},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
+    <!-- 部分成功收敛：RUNNING → PARTIAL，登记错误报告相对路径与错误摘要、完成时间与保留期截止。 -->
+    <update id="markPartial">
+        UPDATE import_jobs
+        SET status = 'PARTIAL',
+            error_report_path = #{errorReportPath},
+            error_summary = #{errorSummary},
+            finished_at = #{now},
+            expired_at = #{expiredAt},
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
+    <!-- 人工重试：仅 FAILED 且未达尝试上限可重置；清空执行反馈（进度/时间/错误/错误报告），
+         保留上传原件 file_path 与 total_rows，失败 Attempt 历史保留；
+         新 Outbox 由调用方在同一事务写入，重走可靠投递与条件抢占管道。 -->
+    <update id="retry">
+        UPDATE import_jobs
+        SET status = 'PENDING',
+            processed_rows = 0,
+            succeeded_rows = 0,
+            skipped_rows = 0,
+            error_report_path = NULL,
+            error_summary = NULL,
+            started_at = NULL,
+            finished_at = NULL,
+            expired_at = NULL,
+            error_code = NULL,
+            error_message = NULL,
+            last_heartbeat_at = NULL,
+            lease_expires_at = NULL,
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status = 'FAILED'
+          AND attempt_count &lt; #{maxAttempts}
+    </update>
+
+    <!-- 启动/维护恢复：只收敛「租约已失效（含未写租约）」的 RUNNING——
+         维护服务可合法判定失联的边界；清空租约供重试后重新抢占。 -->
+    <update id="recoverExpiredRunning">
+        UPDATE import_jobs
+        SET status = 'FAILED',
+            finished_at = #{now},
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            lease_expires_at = NULL,
+            version = version + 1
+        WHERE status = 'RUNNING'
+          AND (lease_expires_at IS NULL OR lease_expires_at &lt;= #{now})
+    </update>
+
+    <!-- 到期扫描（清理）：SUCCEEDED/PARTIAL 且已过保留期，走 (status, expired_at) 索引，
+         按到期先后限量处理（错误报告随工单一并清理）。 -->
+    <select id="findExpired" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+        SELECT <include refid="jobColumns"/>
+        FROM import_jobs
+        WHERE status IN ('SUCCEEDED', 'PARTIAL')
+          AND expired_at IS NOT NULL
+          AND expired_at &lt;= #{now}
+        ORDER BY expired_at ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 过期收敛：物理文件（上传原件/错误报告）删除成功后才允许执行（删除即事实）；
+         status 条件保证与并发流程互斥，0 行时调用方不发布事件。 -->
+    <update id="markExpired">
+        UPDATE import_jobs
+        SET status = 'EXPIRED',
+            version = version + 1
+        WHERE id = #{jobId}
+          AND status IN ('SUCCEEDED', 'PARTIAL')
+    </update>
+
+    <!-- 文件引用计数（孤儿对账）：上传原件或错误报告被任何 Job 登记即保留，不按孤儿清理。 -->
+    <select id="countByFilePath" resultType="int">
+        SELECT COUNT(*)
+        FROM import_jobs
+        WHERE file_path = #{filePath}
+           OR error_report_path = #{filePath}
+    </select>
+</mapper>

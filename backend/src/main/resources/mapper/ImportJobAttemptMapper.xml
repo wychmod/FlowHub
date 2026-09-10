@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单导入执行尝试 MyBatis 实现。
+
+  说明：
+  1. INSERT 不回填自增主键（record 无 setter 的仓库惯例），后续更新按 job_id + status 定位；
+  2. attempt_no 用 MAX+1 子查询生成：聚合无 GROUP BY 恒返回一行，首条亦插出 attempt_no=1，
+     重试后不覆盖旧行（唯一索引 uk_attempt_import_job_no 从库层兜底）；
+  3. 导入尝试共享上传原件，无 per-attempt 产物列，收敛只写状态与错误证据。
+-->
+<mapper namespace="com.example.exportflow.orderimport.mapper.ImportJobAttemptMapper">
+
+    <!-- 插入 RUNNING 尝试（与抢占同一事务提交，保证状态切换与审计记录原子生效）。 -->
+    <insert id="insertRunning">
+        INSERT INTO import_job_attempts (job_id, attempt_no, status, started_at, created_at)
+        SELECT #{jobId}, COALESCE(MAX(attempt_no), 0) + 1, 'RUNNING', #{now}, #{now}
+        FROM import_job_attempts
+        WHERE job_id = #{jobId}
+    </insert>
+
+    <!-- 收敛当前 RUNNING 尝试为 FAILED（同一时刻至多一条 RUNNING 尝试）。 -->
+    <update id="markFailed">
+        UPDATE import_job_attempts
+        SET status = 'FAILED',
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            finished_at = #{now}
+        WHERE job_id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
+    <!-- 尝试全成功收敛：RUNNING → SUCCEEDED（无产物列，仅回填结束时间）。 -->
+    <update id="markSucceeded">
+        UPDATE import_job_attempts
+        SET status = 'SUCCEEDED',
+            finished_at = #{now}
+        WHERE job_id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
+    <!-- 尝试部分成功收敛：RUNNING → PARTIAL，登记错误摘要（与 Job error_summary 一致的口径）。 -->
+    <update id="markPartial">
+        UPDATE import_job_attempts
+        SET status = 'PARTIAL',
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            finished_at = #{now}
+        WHERE job_id = #{jobId}
+          AND status = 'RUNNING'
+    </update>
+
+    <!-- 启动/维护恢复：与 Job 恢复同一「租约失效」前置条件（IN 子查询），
+         Attempt 先行收敛——不会把仍有有效租约的尝试误写成失败。 -->
+    <update id="recoverExpiredRunning">
+        UPDATE import_job_attempts
+        SET status = 'FAILED',
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            finished_at = #{now}
+        WHERE status = 'RUNNING'
+          AND job_id IN (
+              SELECT id FROM import_jobs
+              WHERE status = 'RUNNING'
+                AND (lease_expires_at IS NULL OR lease_expires_at &lt;= #{now})
+          )
+    </update>
+
+    <!-- 活跃租约判断（孤儿对账）：尝试 RUNNING 且 Job RUNNING 且租约未到期。 -->
+    <select id="countRunningWithValidLease" resultType="int">
+        SELECT COUNT(*)
+        FROM import_job_attempts a
+        JOIN import_jobs j ON j.id = a.job_id
+        WHERE a.job_id = #{jobId}
+          AND a.attempt_no = #{attemptNo}
+          AND a.status = 'RUNNING'
+          AND j.status = 'RUNNING'
+          AND j.lease_expires_at IS NOT NULL
+          AND j.lease_expires_at &gt; #{now}
+    </select>
+
+    <!-- 文件引用计数（孤儿对账）：import_jobs 的 file_path/error_report_path 被引用即保留。 -->
+    <select id="countByFilePath" resultType="int">
+        SELECT COUNT(*)
+        FROM import_jobs
+        WHERE file_path = #{filePath}
+           OR error_report_path = #{filePath}
+    </select>
+
+    <!-- 当前 RUNNING 尝试序号（claim 同事务插入后执行体查询；无 RUNNING 行返回 null 由调用方兜底）。 -->
+    <select id="selectRunningAttemptNo" resultType="java.lang.Integer">
+        SELECT MAX(attempt_no)
+        FROM import_job_attempts
+        WHERE job_id = #{jobId}
+          AND status = 'RUNNING'
+    </select>
+</mapper>

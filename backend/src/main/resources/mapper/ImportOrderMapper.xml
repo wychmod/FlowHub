@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单导入执行侧订单写入 MyBatis 实现。
+
+  冲突策略（设计决策点 1/2）：文件内去重 + DB 预查（IN 命中即视为冲突跳过）+
+  uk_orders_order_no 唯一约束兜底（并发/极端场景 DuplicateKey 回退为跳过）。
+-->
+<mapper namespace="com.example.exportflow.orderimport.mapper.ImportOrderMapper">
+
+    <!-- 冲突预查：一次 IN 查询返回已存在的订单号，供执行体裁决是否跳过（空集合由调用方防御不执行）。 -->
+    <select id="selectExistingOrderNos" resultType="java.lang.String">
+        SELECT order_no
+        FROM orders
+        WHERE order_no IN
+        <foreach collection="orderNos" item="no" open="(" separator="," close=")">
+            #{no}
+        </foreach>
+    </select>
+
+    <!-- 批量入库：INSERT 显式写全部业务列；order_status 与 status 同值双写（订单查询按 status 走索引），
+         created_at 由应用写入以与导入文件的时间口径一致。 -->
+    <insert id="insertBatch">
+        INSERT INTO orders (
+            order_no, order_status, sales_channel, customer_name, customer_phone,
+            total_amount, currency, shipping_province, created_at, status
+        ) VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.orderNo}, #{r.orderStatus}, #{r.salesChannel}, #{r.customerName}, #{r.customerPhone},
+             #{r.totalAmount}, #{r.currency}, #{r.shippingProvince}, #{r.createdAt}, #{r.orderStatus})
+        </foreach>
+    </insert>
+</mapper>
