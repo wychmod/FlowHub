@@ -1,6 +1,6 @@
 -- V2__add_export_job_idempotency.sql
 -- 导出任务幂等改造：为 export_jobs 表新增幂等键、请求指纹、筛选命中数 3 列，并对幂等键加唯一约束。
--- 依据参考项目 project-export-flow 的 V2__add_export_job_idempotency.sql 完整迁移而来，并补充详细说明。
+-- 依据参考项目的 V2__add_export_job_idempotency.sql 完整迁移而来，并补充详细说明。
 --
 -- 设计目的：当用户对同一批订单重复触发「导出」时，服务端需能识别并返回既有的任务，
 -- 而不是新建一个重复任务。这三列共同支撑幂等创建（对应 be-td.md 第 5.2/幂等创建章节）。

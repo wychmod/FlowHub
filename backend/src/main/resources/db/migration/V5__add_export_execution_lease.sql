@@ -1,7 +1,7 @@
 -- V5__add_export_execution_lease.sql
 -- 导出任务执行租约（Lease）/ 心跳（Heartbeat）改造：为 export_jobs 增加租约与心跳字段，
 -- 用于崩溃恢复——当执行 worker 宕机时，租约过期后其他 worker 可安全地接管该任务。
--- 依据参考项目 project-export-flow 的 V5__add_export_execution_lease.sql 完整迁移而来，并补充详细说明。
+-- 依据参考项目的 V5__add_export_execution_lease.sql 完整迁移而来，并补充详细说明。
 --
 -- 背景：一个导出任务可能由多个 worker 实例竞争执行。如果没有「租约」，两个 worker 可能同时
 -- 执行同一任务（重复导出、资源浪费）。租约机制保证：同一时刻只有持约者能执行，持约者死掉后，

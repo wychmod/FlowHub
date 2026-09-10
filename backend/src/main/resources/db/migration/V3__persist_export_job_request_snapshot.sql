@@ -1,6 +1,6 @@
 -- V3__persist_export_job_request_snapshot.sql
 -- 导出任务请求快照持久化：为 export_jobs 表新增 4 列，把「创建任务时的导出请求参数」整体落库。
--- 依据参考项目 project-export-flow 的 V3__persist_export_job_request_snapshot.sql 完整迁移而来，并补充详细说明。
+-- 依据参考项目的 V3__persist_export_job_request_snapshot.sql 完整迁移而来，并补充详细说明。
 --
 -- 设计目的：异步任务真正执行（生成 Excel）时，原始请求往往已不再是当前状态——
 --   例如用户勾选后订单数据又变化、筛选条件条目变更、请求对象已不在内存。

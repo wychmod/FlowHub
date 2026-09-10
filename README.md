@@ -76,7 +76,7 @@ SEED_ROWS=50000 ./seed-demo-data.sh  # 自定义行数（1 ~ 1,000,000）
 ## 目录结构
 
 ```text
-export-flow/
+flowhub/
 ├── docs/                      # PRD 与前后端技术设计文档
 ├── backend/                   # Spring Boot 后端
 │   ├── mvnw / mvnw.cmd        # Maven Wrapper（使用 .mvn/wrapper/maven-wrapper.jar）

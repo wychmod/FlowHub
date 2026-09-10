@@ -1,7 +1,7 @@
 -- V4__add_export_execution_state.sql
 -- 导出任务执行状态字段：为 export_jobs / export_job_attempts 补充进度、耗时、产物文件、错误信息等执行期字段，
 -- 并为「过期任务扫描」建立索引。
--- 依据参考项目 project-export-flow 的 V4__add_export_execution_state.sql 完整迁移而来，并补充详细说明。
+-- 依据参考项目的 V4__add_export_execution_state.sql 完整迁移而来，并补充详细说明。
 
 -- ======================== 一、export_jobs（导出任务表）======================
 

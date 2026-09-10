@@ -1,6 +1,6 @@
 -- V1__init_schema.sql
 -- 初始化导入：订单、导出任务、任务执行尝试、Outbox 事件 共 4 张表。
--- 依据参考项目 project-export-flow 的 V1__init_schema.sql 完整迁移而来，并为每个字段补充中文说明。
+-- 依据参考项目的 V1__init_schema.sql 完整迁移而来，并为每个字段补充中文说明。
 --
 -- 采用 H2/MySQL 兼容方言（TIMESTAMP/VARCHAR/DECIMAL(18,2)/LONGTEXT、UNIQUE 约束、
 -- 独立的 CREATE INDEX），保证 @SpringBootTest 在使用 H2(MySQL 模式) 作为测试数据源时

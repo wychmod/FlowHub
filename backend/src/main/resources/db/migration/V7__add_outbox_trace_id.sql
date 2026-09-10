@@ -1,6 +1,6 @@
 -- V7__add_outbox_trace_id.sql
 -- Outbox 链路追踪：为 outbox_events 表增加 trace_id 列，并为其建立索引。
--- 依据参考项目 project-export-flow 的 V7__add_outbox_trace_id.sql 完整迁移而来，并补充详细说明。
+-- 依据参考项目的 V7__add_outbox_trace_id.sql 完整迁移而来，并补充详细说明。
 --
 -- 背景：当前项目已有 trace_id 基础设施（TraceIdFilter/MdcScope/TraceIdSupport，见 common/web/trace）。
 -- 业务写库时将链路 trace_id 写入 MDC；本版本在发送给 MQ 的每条 outbox 事件里也带上该 trace_id，

@@ -1,6 +1,6 @@
 -- V6__complete_order_export_columns.sql
 -- 补全订单可导出业务列：为 orders 表新增导出中心需要的订单明细字段，并将已有历史数据按规则回填。
--- 依据参考项目 project-export-flow 的 V6__complete_order_export_columns.sql 完整迁移而来，并补充详细说明。
+-- 依据参考项目的 V6__complete_order_export_columns.sql 完整迁移而来，并补充详细说明。
 --
 -- 背景：V1 的 orders 表（参考项目初版演示 schema）只有精简字段（order_no/customer_name/status/...），
 -- 不足以支撑「按渠道、按币种、按省份等维度导出」。本版本补齐导出所需的业务列，
