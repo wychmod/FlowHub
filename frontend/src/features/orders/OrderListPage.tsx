@@ -259,7 +259,7 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
 
   // 页题已上移布局顶栏（AppLayout），页面本体由筛选卡与表格卡两张 Card 组成
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Card>
         <OrderFilterForm
           form={form}
@@ -278,7 +278,7 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
         />
       </Card>
       <Card>
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
           <div
             style={{
               display: 'flex',
@@ -325,7 +325,7 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
             <Alert
               type="error"
               showIcon
-              message="订单加载失败"
+              title="订单加载失败"
               description={
                 error.traceId ? `${error.message}（trace_id: ${error.traceId}）` : error.message
               }

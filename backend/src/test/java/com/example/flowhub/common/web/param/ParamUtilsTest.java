@@ -38,6 +38,21 @@ class ParamUtilsTest {
         assertThat(ParamUtils.trimToNull("0")).isEqualTo("0");
     }
 
+    // ==================== escapeLike ====================
+
+    @Test
+    void escapeLike_null原样返回() {
+        assertThat(ParamUtils.escapeLike(null)).isNull();
+    }
+
+    @Test
+    void escapeLike_转义反斜杠与通配符() {
+        assertThat(ParamUtils.escapeLike("EF%2026")).isEqualTo("EF\\%2026");
+        assertThat(ParamUtils.escapeLike("order_1")).isEqualTo("order\\_1");
+        assertThat(ParamUtils.escapeLike("a\\b")).isEqualTo("a\\\\b");
+        assertThat(ParamUtils.escapeLike("EF2026-001")).isEqualTo("EF2026-001");
+    }
+
     // ==================== splitMultiValue ====================
 
     @Test

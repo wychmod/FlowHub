@@ -214,7 +214,7 @@ export function ExportJobsPage() {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Card>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space size={16}>
@@ -228,14 +228,14 @@ export function ExportJobsPage() {
       </Card>
       <Card>
         {actionError ? (
-          <Alert type="error" showIcon style={{ marginBottom: 16 }} message={actionError} role="alert" />
+          <Alert type="error" showIcon style={{ marginBottom: 16 }} title={actionError} role="alert" />
         ) : null}
         {jobs.error ? (
           <Alert
             type="error"
             showIcon
             style={{ marginBottom: 16 }}
-            message={errorMessage(jobs.error)}
+            title={errorMessage(jobs.error)}
             action={<Button size="small" onClick={() => void jobs.refetch()}>重新加载</Button>}
           />
         ) : null}

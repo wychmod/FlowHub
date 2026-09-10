@@ -32,4 +32,14 @@ class GlobalExceptionHandlerMultipartTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().code()).isEqualTo("VALIDATION_ERROR");
     }
+
+    @Test
+    void notAcceptableMapsTo406() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleNotAcceptable(
+                new org.springframework.web.HttpMediaTypeNotAcceptableException("no match"));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(406);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo("NOT_ACCEPTABLE");
+    }
 }

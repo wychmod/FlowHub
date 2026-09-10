@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -66,6 +67,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.httpStatus())
                 .body(ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR.code(), "请求体不是合法的 JSON"));
+    }
+
+    /** Accept 与接口 produces 不匹配（如 JSON 客户端请求 xlsx 下载端点），转 406 而非 500 兜底。 */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
+        log.warn("Accept 协商失败: {}", ex.getMessage());
+        return ResponseEntity.status(CommonErrorCode.NOT_ACCEPTABLE.httpStatus())
+                .body(ApiResponse.failure(CommonErrorCode.NOT_ACCEPTABLE.code(), CommonErrorCode.NOT_ACCEPTABLE.message()));
     }
 
     /** 上传文件超过 multipart 大小上限（比业务 10MB 校验更大的兜底闸），转 400 而非 500。 */

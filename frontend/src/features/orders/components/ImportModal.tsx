@@ -111,7 +111,7 @@ export function ImportModal({ open, onCancel, onNavigate }: ImportModalProps) {
           ]
       }
     >
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         <Typography.Text type="secondary">
           仅支持由导出模板填写的 .xlsx（表头 9 列、≤10MB）。可先
           <Typography.Link onClick={() => void handleTemplateDownload()}>
@@ -124,7 +124,7 @@ export function ImportModal({ open, onCancel, onNavigate }: ImportModalProps) {
           <Alert
             type="success"
             showIcon
-            message="导入任务已创建"
+            title="导入任务已创建"
             description={`任务编号 ${accepted.job_no}，识别到 ${accepted.total_rows} 行数据，正在后台校验导入。`}
           />
         ) : (
@@ -133,7 +133,7 @@ export function ImportModal({ open, onCancel, onNavigate }: ImportModalProps) {
               <Alert
                 type="error"
                 showIcon
-                message="导入受理失败"
+                title="导入受理失败"
                 description={errorMessage(upload.error)}
               />
             ) : null}

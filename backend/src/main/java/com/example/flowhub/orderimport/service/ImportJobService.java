@@ -186,6 +186,10 @@ public class ImportJobService {
             return new ImportJobAcceptedVO(
                     persisted.id(), persisted.jobNo(), STATUS_PENDING,
                     persisted.totalRows(), persisted.fileName(), persisted.createdAt());
+        } catch (IOException ex) {
+            // SAX 扫描失败（PK 魔数通过但不是合法 OOXML）：转文件级 400，避免落 500 兜底
+            importFileService.deleteQuietly(importFileService.resolvePersisted(filePath));
+            throw new BusinessException(ImportErrorCode.IMPORT_FILE_CORRUPTED);
         } catch (RuntimeException ex) {
             // 受理事务回滚（结构校验失败/DB 失败）：删除已落盘原件，避免孤儿文件
             importFileService.deleteQuietly(importFileService.resolvePersisted(filePath));

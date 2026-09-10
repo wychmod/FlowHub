@@ -130,7 +130,7 @@ export function ExportModal({
             type="error"
             showIcon
             style={{ marginBottom: 16 }}
-            message="创建导出任务失败"
+            title="创建导出任务失败"
             description={
               error.traceId ? `${error.message}（trace_id: ${error.traceId}）` : error.message
             }

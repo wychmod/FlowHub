@@ -66,6 +66,20 @@ class ImportJobServiceTest {
                         ex -> assertThat(ex.getErrorCode().code()).isEqualTo(ImportErrorCode.IMPORT_FILE_TOO_LARGE.code()));
     }
 
+    @Test
+    void rejectsCorruptedZipPayload() {
+        // PK 魔数通过文件级预检，但不是合法 ZIP：受理链应转 IMPORT_FILE_CORRUPTED 400 而非 500
+        byte[] bogus = new byte[128];
+        bogus[0] = 'P';
+        bogus[1] = 'K';
+        MockMultipartFile file = new MockMultipartFile("file", "orders.xlsx",
+                MediaType.APPLICATION_OCTET_STREAM_VALUE, bogus);
+
+        assertThatThrownBy(() -> importJobService.createJob(file))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        ex -> assertThat(ex.getErrorCode().code()).isEqualTo(ImportErrorCode.IMPORT_FILE_CORRUPTED.code()));
+    }
+
     // ==================== 受理期结构级校验（同步 400） ====================
 
     @Test

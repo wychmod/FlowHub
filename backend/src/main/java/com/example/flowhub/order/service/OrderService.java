@@ -57,8 +57,9 @@ public class OrderService {
         List<String> currencies = ParamUtils.parseMultiEnum(
                 request.currency(), OrderFilterWhitelist.CURRENCIES, "currency");
 
-        String customerName = ParamUtils.trimToNull(request.customerName());
-        String orderNo = ParamUtils.trimToNull(request.orderNo());
+        // LIKE 模糊值须转义通配符，防用户输入 %/_ 被当模式解释
+        String customerName = ParamUtils.escapeLike(ParamUtils.trimToNull(request.customerName()));
+        String orderNo = ParamUtils.escapeLike(ParamUtils.trimToNull(request.orderNo()));
         String customerPhone = ParamUtils.parsePhone(request.customerPhone(), "customer_phone");
 
         BigDecimal amountMin = ParamUtils.parseDecimal(request.totalAmountMin(), "total_amount_min");

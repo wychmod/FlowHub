@@ -11,6 +11,7 @@ public enum CommonErrorCode implements ErrorCode {
 
     VALIDATION_ERROR("VALIDATION_ERROR", "请求参数不合法", HttpStatus.BAD_REQUEST),
     NOT_FOUND("NOT_FOUND", "资源不存在", HttpStatus.NOT_FOUND),
+    NOT_ACCEPTABLE("NOT_ACCEPTABLE", "请求的 Accept 与该接口的响应类型不匹配", HttpStatus.NOT_ACCEPTABLE),
     INTERNAL_ERROR("INTERNAL_ERROR", "服务内部错误", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final String code;

@@ -84,6 +84,17 @@ public final class ParamUtils {
         }
     }
 
+    /**
+     * LIKE 通配符转义：将 \ % _ 前置反斜杠，防止用户输入被当作通配符（默认转义符 \，MySQL 与 H2 一致）。
+     * null 原样返回；仅用于拼入 LIKE 模式的原始值。
+     */
+    public static String escapeLike(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        return raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
     /** 数值解析：null/空白返回 null，非法数值抛 400（文案含字段名）。 */
     public static BigDecimal parseDecimal(String raw, String field) {
         String normalized = trimToNull(raw);
