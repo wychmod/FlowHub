@@ -1,5 +1,6 @@
 package com.example.exportflow.export.service;
 
+import com.example.exportflow.common.web.util.RootedPathGuard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +39,7 @@ public class ExportFileService {
     private static final Pattern ATTEMPT_FILE_PATTERN = Pattern.compile("attempt-(\\d+)\\.(tmp|xlsx)");
 
     private final Path exportRoot;
+    private final RootedPathGuard guard;
 
     /** 构造时提纯受控根目录，作为后续所有路径校验的唯一基准。 */
     public ExportFileService(@Value("${export.files.dir:export-files}") String configuredRoot) throws IOException {
@@ -45,6 +47,7 @@ public class ExportFileService {
         Path configured = Path.of(configuredRoot).toAbsolutePath().normalize();
         Files.createDirectories(configured);
         this.exportRoot = configured.toRealPath();
+        this.guard = new RootedPathGuard(this.exportRoot);
     }
 
     /**
@@ -56,8 +59,8 @@ public class ExportFileService {
     public Path temporaryPath(long jobId, int attemptNo) throws IOException {
         Path relative = Path.of(DATE_DIR.format(Instant.now()),
                 String.valueOf(jobId), "attempt-" + attemptNo + ".tmp");
-        Path file = resolveWithinRoot(relative);
-        validateWithinRoot(relative);
+        Path file = guard.resolveWithinRoot(relative);
+        guard.validateWithinRoot(relative);
         Files.createDirectories(file.getParent());
         Files.deleteIfExists(file);
         return file;
@@ -71,7 +74,7 @@ public class ExportFileService {
      *         absolutePath 仅存当前进程，供 markSucceeded 事务失败时的补偿删除
      */
     public PublishedFile publish(Path temporary, int attemptNo) throws IOException {
-        requireWithinRoot(temporary);
+        guard.requireWithinRoot(temporary);
         Path target = temporary.resolveSibling("attempt-" + attemptNo + PUBLISHED_SUFFIX);
         // DB 只存相对路径（正斜杠统一，避免平台分隔符进入持久化值）
         String relativePath = exportRoot.relativize(target.normalize()).toString().replace('\\', '/');
@@ -96,8 +99,8 @@ public class ExportFileService {
         if (parsed.isAbsolute() || parsed.getRoot() != null) {
             throw new IllegalArgumentException("导出持久化路径必须为相对路径: " + relativePath);
         }
-        Path resolved = resolveWithinRoot(parsed);
-        validateWithinRoot(parsed);
+        Path resolved = guard.resolveWithinRoot(parsed);
+        guard.validateWithinRoot(parsed);
         return resolved;
     }
 
@@ -109,7 +112,7 @@ public class ExportFileService {
      */
     public boolean deletePublished(Path absolutePath) {
         try {
-            requireWithinRoot(absolutePath);
+            guard.requireWithinRoot(absolutePath);
             Files.deleteIfExists(absolutePath);
             return true;
         } catch (IOException | IllegalArgumentException ex) {
@@ -187,59 +190,6 @@ public class ExportFileService {
             Files.deleteIfExists(file);
         } catch (IOException ex) {
             log.warn("export_temp_file_delete_failed path={} reason={}", file, ex.toString());
-        }
-    }
-
-    /**
-     * 文本层解析（纯字符串运算）：normalize 后拒绝根组件与 .. 逃逸，拼接到 exportRoot 下。
-     *
-     * @return exportRoot 下的目标绝对路径；只查写法不查磁盘，须配合 validateWithinRoot 使用
-     */
-    private Path resolveWithinRoot(Path relative) {
-        Path normalized = relative.normalize();
-        if (normalized.isAbsolute() || normalized.getRoot() != null || normalized.startsWith("..")) {
-            throw new IllegalArgumentException("导出路径逃逸出受控根目录: " + relative);
-        }
-        return exportRoot.resolve(normalized);
-    }
-
-    /**
-     * 绝对路径入口防御：normalize 后必须位于 exportRoot 内，再按相对部分走物理层校验。
-     * 无返回值：通过即静默返回，越界抛 IllegalArgumentException。
-     */
-    private void requireWithinRoot(Path absolute) {
-        Path normalized = absolute.normalize();
-        if (!normalized.startsWith(exportRoot)) {
-            throw new IllegalArgumentException("导出路径逃逸出受控根目录: " + absolute);
-        }
-        validateWithinRoot(exportRoot.relativize(normalized));
-    }
-
-    /**
-     * 物理层校验（与文本层配套）：文本层只看字符串，防不住 root 内被塞入符号链接（如 42 → /etc），
-     * 故逐段走进真实文件系统查链接，再对已存在目标用 toRealPath 验证最终落点仍在 root 内。
-     * 无返回值：通过即静默返回，含链接/越界/无法验真均抛 IllegalArgumentException。
-     */
-    private void validateWithinRoot(Path relative) {
-        Path current = exportRoot;
-        // 逐段拼接走真实文件系统；中间任意一层是符号链接即拒绝（逃逸常发生在中间目录层）
-        for (Path segment : relative.normalize()) {
-            current = current.resolve(segment);
-            if (Files.isSymbolicLink(current)) {
-                throw new IllegalArgumentException("Export path contains symbolic link: " + relative);
-            }
-        }
-        // 目标真实存在才验真（待创建的 .tmp 尚不存在，无真实路径可查）
-        if (Files.exists(current)) {
-            try {
-                // toRealPath 返回跟随全部链接后的真实路径，兜住逐段检查的盲区（嵌套链接/竞态窗口）
-                if (!current.toRealPath().startsWith(exportRoot)) {
-                    throw new IllegalArgumentException("导出路径逃逸出受控根目录: " + relative);
-                }
-            } catch (IOException ex) {
-                // 系统调用失败无法验真，按逃逸同等处理：查不出真相 ≠ 安全，拒绝放行
-                throw new IllegalArgumentException("Export path cannot be resolved: " + relative, ex);
-            }
         }
     }
 }
