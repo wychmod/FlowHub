@@ -425,11 +425,11 @@ UPDATE import_jobs SET status='RUNNING', attempt_count=attempt_count+1, version=
 - [x] **B17** 后端集成测试：`ImportJobServiceTest`（受理/结构校验/冲突预查）、`ImportExecutionIntegrationTest`（SAX 批处理/终态三态/批量入库）、`ImportProgressSseIntegrationTest`（5 类事件/版本栅栏）、`ImportJobConsumerTest`（抢占/DLQ）、`ImportMaintenanceIntegrationTest`（恢复/清理/重试）
 
 ### 前端
-- [ ] **F1** `api/importApi.ts`（multipart 独立通道 + 下载 + 列表 + 重试 + SSE 端点）
-- [ ] **F2** 订单列表页「导入订单」按钮 + 弹窗（模板下载 + `Upload.Dragger`）
-- [ ] **F3** `useImportEvents` Hook（复刻 `useExportEvents` + `import.partial` 类型，jsdom 单测）
-- [ ] **F4** 独立「导入任务」页 `ImportJobsPage`（PARTIAL Tag/进度/统计/下载/重试/分页）
-- [ ] **F5** 前端单测 + `npm run build`（受 `check-frontend.js` hook 约束）
+- [x] **F1** `api/importApi.ts`（multipart 独立通道 + 下载 + 列表 + 重试 + SSE 端点）
+- [x] **F2** 订单列表页「导入订单」按钮 + 弹窗（模板下载 + `Upload.Dragger`）
+- [x] **F3** `useImportEvents` Hook（复刻 `useExportEvents` + `import.partial` 类型，jsdom 单测）
+- [x] **F4** 独立「导入任务」页 `ImportJobsPage`（PARTIAL Tag/进度/统计/下载/重试/分页）
+- [x] **F5** 前端单测 + `npm run build`（受 `check-frontend.js` hook 约束）
 
 ### 联调与收尾
 - [ ] **E1** 端到端手工链路：模板下载→填错几行→上传 202→RUNNING→PARTIAL→下载错误报告→修正→重传 SUCCEEDED

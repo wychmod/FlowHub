@@ -1,5 +1,6 @@
 import {
   ExportOutlined,
+  ImportOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   OrderedListOutlined,
@@ -11,11 +12,12 @@ import { useState } from 'react';
 import { PAGE_META, pageLabel } from './layoutMeta';
 import { HealthBadge } from './HealthBadge';
 
-export type PageKey = 'orders' | 'exports';
+export type PageKey = 'orders' | 'exports' | 'import-jobs';
 
 const PAGE_ICONS: Record<PageKey, ReactNode> = {
   orders: <OrderedListOutlined />,
   exports: <ExportOutlined />,
+  'import-jobs': <ImportOutlined />,
 };
 
 // 菜单文案由 PAGE_META 派生，页题与导航共用同一事实源

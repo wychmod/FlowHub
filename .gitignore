@@ -63,6 +63,12 @@ logs/
 ### 导出文件（后端生成的 Excel 落盘目录） ###
 export-files/
 
+### 导入文件（上传原件与错误报告落盘目录） ###
+import-files/
+
+### 导入测试数据（本地手工测试用，不入库） ###
+test-imports/
+
 ### Windows 系统文件 ###
 Thumbs.db
 Desktop.ini

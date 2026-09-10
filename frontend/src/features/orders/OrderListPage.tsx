@@ -1,4 +1,4 @@
-import { ExportOutlined, FileExcelOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ExportOutlined, FileExcelOutlined, ImportOutlined, ReloadOutlined } from '@ant-design/icons';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
@@ -34,6 +34,7 @@ import {
   enumLabel,
 } from './constants';
 import { ExportModal, type ExportMode } from './components/ExportModal';
+import { ImportModal } from './components/ImportModal';
 import { resolveIdempotencyKey, type ExportAttempt } from './idempotency';
 import { OrderFilterForm } from './components/OrderFilterForm';
 import {
@@ -68,6 +69,7 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
   // ==== 本地 UI 状态 ====
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [exportModal, setExportModal] = useState<ExportMode | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   // 幂等键生命周期状态：useRef 持有进行中的提交意图（同 payload 重试复用，成功/取消后置 null 失效）
   const attemptRef = useRef<ExportAttempt | null>(null);
@@ -299,6 +301,9 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
               <Button icon={<ReloadOutlined />} loading={isFetching} onClick={() => void refetch()}>
                 刷新
               </Button>
+              <Button icon={<ImportOutlined />} onClick={() => setImportModalOpen(true)}>
+                导入订单
+              </Button>
               <Button
                 icon={<ExportOutlined />}
                 disabled={selectedIds.length === 0}
@@ -379,6 +384,14 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
           }}
         />
       ) : null}
+      <ImportModal
+        open={importModalOpen}
+        onCancel={() => setImportModalOpen(false)}
+        onNavigate={(key) => {
+          setImportModalOpen(false);
+          onNavigate(key);
+        }}
+      />
     </Space>
   );
 }
