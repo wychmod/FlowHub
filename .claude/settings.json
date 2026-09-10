@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"D:/idea/export-flow/.claude/hooks/check-frontend.js\"",
+            "command": "node \"D:/idea/flowhub/.claude/hooks/check-frontend.js\"",
             "shell": "bash",
             "timeout": 180,
             "statusMessage": "校验前端改动：运行单测与构建…"

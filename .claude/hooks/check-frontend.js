@@ -9,7 +9,7 @@
 'use strict';
 const { execSync } = require('child_process');
 
-const FRONTEND_DIR = 'D:/idea/export-flow/frontend';
+const FRONTEND_DIR = 'D:/idea/flowhub/frontend';
 
 /** 读取 stdin 全部内容。 */
 function readStdin() {
