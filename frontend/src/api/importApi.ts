@@ -122,11 +122,17 @@ export function listImportJobs(params: {
 export async function uploadOrderImport(file: File): Promise<ImportJobAccepted> {
   const form = new FormData();
   form.append('file', file);
-  const response = await fetch(apiBaseUrl('/api/v1/import-jobs'), {
-    method: 'POST',
-    headers: { Accept: 'application/json' },
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(apiBaseUrl('/api/v1/import-jobs'), {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      body: form,
+    });
+  } catch {
+    // 网络层失败（后端未启动/连接被重置）：转统一 ApiError，避免英文 TypeError 透出到弹窗
+    throw new ApiError('无法连接服务器，请确认后端已启动后重试', undefined, undefined, 0);
+  }
   const body = await readJsonOrNull(response);
   if (!response.ok) {
     throw envelopeToError(

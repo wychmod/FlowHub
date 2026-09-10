@@ -139,6 +139,16 @@ describe('uploadOrderImport', () => {
       status: 400,
     });
   });
+
+  it('网络层失败（fetch reject）转为中文 ApiError 而非裸 TypeError', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+    await expect(uploadOrderImport(new Blob(['x']) as unknown as File)).rejects.toMatchObject({
+      name: 'ApiError',
+      message: '无法连接服务器，请确认后端已启动后重试',
+      status: 0,
+    });
+  });
 });
 
 describe('retryImportJob', () => {

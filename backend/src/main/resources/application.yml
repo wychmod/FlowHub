@@ -1,9 +1,20 @@
 server:
   port: 8080
+  tomcat:
+    # 超限上传被拒时吞掉整个请求体再回错，保证客户端能收到结构化 400（默认 2MB 会直接重置连接，
+    # 浏览器 fetch 表现为网络错误/挂起而非 JSON 错误）。
+    max-swallow-size: -1
 
 spring:
   application:
     name: flow-hub-backend
+  # 上传受理上限：业务层自校验 ≤10MB（IMPORT_FILE_TOO_LARGE），此处略放大让请求到达业务校验；
+  # 超 max-file-size 的请求体由 OversizeRequestBodyFilter 先拒（drain 后回 400，避免容器中止
+  # multipart 解析导致连接重置、客户端收不到响应）；容器闸仅作 chunked 等无长度场景兜底。
+  servlet:
+    multipart:
+      max-file-size: 11MB
+      max-request-size: 12MB
   # MySQL 数据源。Flyway 依赖该 DataSource，在应用启动时自动执行 src/main/resources/db/migration 下的迁移脚本。
   datasource:
     url: jdbc:mysql://localhost:3306/flowhub?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC

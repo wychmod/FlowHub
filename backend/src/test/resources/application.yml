@@ -7,6 +7,12 @@ spring:
     url: jdbc:h2:mem:flowhub_test;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
     password: ""
+  # 上传受理上限与主配置一致（本文件整体遮蔽主 application.yml，multipart 需在此重复声明）；
+  # 超限用例据此构造 12MB 载荷断言 400 Envelope。
+  servlet:
+    multipart:
+      max-file-size: 11MB
+      max-request-size: 12MB
   # 消费监听容器不自启：测试上下文无真实 Broker，启动容器只会反复重连拖垮测试；
   # Consumer 逻辑由测试直接方法调用验证（同 OutboxDispatcher 直接调 dispatchPendingEvents 的惯例）。
   # 消费参数（manual/prefetch/concurrency）在主 application.yml，对不经容器的方法调用不生效，无需两处同步。

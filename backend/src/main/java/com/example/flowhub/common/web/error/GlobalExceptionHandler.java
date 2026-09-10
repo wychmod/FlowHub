@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -64,6 +66,22 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.httpStatus())
                 .body(ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR.code(), "请求体不是合法的 JSON"));
+    }
+
+    /** 上传文件超过 multipart 大小上限（比业务 10MB 校验更大的兜底闸），转 400 而非 500。 */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        log.warn("上传文件超过 multipart 上限: {}", ex.getMessage());
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.httpStatus())
+                .body(ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR.code(), "上传文件过大，请控制在 10MB 以内"));
+    }
+
+    /** multipart 请求体本身非法（boundary/格式坏），转 400 而非 500 兜底。 */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMultipart(MultipartException ex) {
+        log.warn("multipart 请求解析失败: {}", ex.getMessage());
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.httpStatus())
+                .body(ApiResponse.failure(CommonErrorCode.VALIDATION_ERROR.code(), "文件上传解析失败，请重新选择文件后上传"));
     }
 
     /** 请求对象绑定/校验失败，收集全部字段错误与类级错误。 */
