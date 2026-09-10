@@ -114,7 +114,7 @@ public class ExcelExportWriter {
                 (row, cell) -> cell.setCellValue(safeText(row.salesChannel()))));
         columns.put("customer_name", new ColumnSpec("客户姓名", 14, false,
                 (row, cell) -> cell.setCellValue(safeText(row.customerName()))));
-        columns.put("customer_phone", new ColumnSpec("客户电话", 16, false,
+        columns.put("customer_phone", new ColumnSpec("客户手机号", 16, false,
                 (row, cell) -> cell.setCellValue(safeText(row.customerPhone()))));
         // 金额列：numeric=true，写成数值型并跳过 safeText（数字没有注入风险），空值则跳过不写单元格
         columns.put("total_amount", new ColumnSpec("订单金额", 14, true,

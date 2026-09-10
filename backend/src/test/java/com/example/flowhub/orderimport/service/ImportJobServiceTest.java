@@ -90,7 +90,26 @@ class ImportJobServiceTest {
 
         assertThatThrownBy(() -> importJobService.createJob(file))
                 .isInstanceOfSatisfying(BusinessException.class,
-                        ex -> assertThat(ex.getErrorCode().code()).isEqualTo(ImportErrorCode.IMPORT_TEMPLATE_MISMATCH.code()));
+                        ex -> {
+                            assertThat(ex.getErrorCode().code()).isEqualTo(ImportErrorCode.IMPORT_TEMPLATE_MISMATCH.code());
+                            assertThat(ex.getMessage()).contains("表头列数应为 9 列，实际 2 列");
+                        });
+    }
+
+    @Test
+    void rejectsTemplateHeaderWrongColumnNameWithPosition() throws IOException {
+        String[] titles = allTitles();
+        titles[1] = "错误列名";
+        byte[] bytes = workbookWithHeader(titles);
+        MockMultipartFile file = new MockMultipartFile("file", "orders.xlsx",
+                MediaType.APPLICATION_OCTET_STREAM_VALUE, bytes);
+
+        assertThatThrownBy(() -> importJobService.createJob(file))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        ex -> {
+                            assertThat(ex.getErrorCode().code()).isEqualTo(ImportErrorCode.IMPORT_TEMPLATE_MISMATCH.code());
+                            assertThat(ex.getMessage()).contains("第 2 列应为「订单状态」，实际为「错误列名」");
+                        });
     }
 
     @Test

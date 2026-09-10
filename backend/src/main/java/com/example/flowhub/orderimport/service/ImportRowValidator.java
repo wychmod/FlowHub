@@ -69,11 +69,11 @@ public class ImportRowValidator {
             errors.add(new FieldError(ImportColumn.CUSTOMER_NAME, "客户姓名过长"));
         }
 
-        // 客户电话选填：非空仅限长度
+        // 客户手机号选填：非空仅限长度
         String customerPhone = ParamUtils.trimToNull(cells[4]);
         rejectInjection(cells[4], ImportColumn.CUSTOMER_PHONE, errors);
         if (customerPhone != null && customerPhone.length() > MAX_PHONE) {
-            errors.add(new FieldError(ImportColumn.CUSTOMER_PHONE, "客户电话过长"));
+            errors.add(new FieldError(ImportColumn.CUSTOMER_PHONE, "客户手机号过长"));
         }
 
         BigDecimal totalAmount = amount(cells[5], errors);

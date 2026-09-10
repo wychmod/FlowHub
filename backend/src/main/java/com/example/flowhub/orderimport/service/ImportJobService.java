@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -229,8 +230,9 @@ public class ImportJobService {
             throw new BusinessException(ImportErrorCode.IMPORT_TEMPLATE_MISMATCH,
                     "模板不匹配：数据 Sheet 必须为「" + ExcelExportWriter.SHEET_NAME + "」");
         }
-        if (!headerMatches(scan)) {
-            throw new BusinessException(ImportErrorCode.IMPORT_TEMPLATE_MISMATCH);
+        String headerReason = headerMismatchReason(scan);
+        if (headerReason != null) {
+            throw new BusinessException(ImportErrorCode.IMPORT_TEMPLATE_MISMATCH, "模板不匹配：" + headerReason);
         }
         if (scan.dataRowCount() == 0) {
             throw new BusinessException(ImportErrorCode.IMPORT_EMPTY_FILE);
@@ -241,22 +243,24 @@ public class ImportJobService {
         }
     }
 
-    /** 表头严格校验：实际列数必须恰为 9，再逐列比对名称/顺序（首位错位列号记日志供定位）。 */
-    private boolean headerMatches(ExcelImportReader.ScanResult scan) {
+    /** 表头严格校验：列数恰为 9 且逐列名称/顺序一致；不匹配返回含错位列号的可读原因，匹配返回 null。 */
+    @Nullable
+    private String headerMismatchReason(ExcelImportReader.ScanResult scan) {
         List<ImportColumn> columns = ImportColumn.all();
         if (scan.headerColumnCount() != columns.size()) {
             log.warn("import_header_mismatch reason=column_count expected={} actual={}",
                     columns.size(), scan.headerColumnCount());
-            return false;
+            return "表头列数应为 " + columns.size() + " 列，实际 " + scan.headerColumnCount() + " 列";
         }
         for (int i = 0; i < columns.size(); i++) {
-            if (!columns.get(i).title().equals(scan.headerTitles().get(i))) {
-                log.warn("import_header_mismatch column_index={} expected={} actual={}",
-                        i, columns.get(i).title(), scan.headerTitles().get(i));
-                return false;
+            String expected = columns.get(i).title();
+            String actual = scan.headerTitles().get(i);
+            if (!expected.equals(actual)) {
+                log.warn("import_header_mismatch column_index={} expected={} actual={}", i, expected, actual);
+                return "第 " + (i + 1) + " 列应为「" + expected + "」，实际为「" + (actual == null ? "缺列" : actual) + "」";
             }
         }
-        return true;
+        return null;
     }
 
     /** 条件抢占：CAS 将 PENDING 置 RUNNING，并同事务插入 RUNNING Attempt（两步原子，不可拆分）。 */
