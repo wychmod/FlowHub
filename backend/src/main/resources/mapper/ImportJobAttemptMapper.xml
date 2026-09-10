@@ -9,7 +9,7 @@
      重试后不覆盖旧行（唯一索引 uk_attempt_import_job_no 从库层兜底）；
   3. 导入尝试共享上传原件，无 per-attempt 产物列，收敛只写状态与错误证据。
 -->
-<mapper namespace="com.example.exportflow.orderimport.mapper.ImportJobAttemptMapper">
+<mapper namespace="com.example.flowhub.orderimport.mapper.ImportJobAttemptMapper">
 
     <!-- 插入 RUNNING 尝试（与抢占同一事务提交，保证状态切换与审计记录原子生效）。 -->
     <insert id="insertRunning">

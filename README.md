@@ -1,4 +1,4 @@
-# ExportFlow
+# FlowHub
 
 企业级异步导出中心（订单筛选 → 异步 Excel 导出 → 进度推送 → 下载；订单 Excel 批量导入）。
 
@@ -15,7 +15,7 @@
 
 ## 一键启动
 
-前置条件：JDK 21、Node.js ≥ 18、MySQL（本机 3306 端口存在 `exportflow` 数据库与 `exportflow/exportflow` 账号，见下方数据源说明；首次运行需联网下载依赖）。RabbitMQ 为**可选**前置（默认 `localhost:5672`，guest/guest）：未启动时后端仍可正常启动、创建接口可用，仅 Outbox 分发器每轮记录 `outbox_publish_deferred` 日志、消费监听容器后台持续重连，Broker 恢复后自动补发并开始消费；但 `/actuator/health` 会因 rabbit 组件显示 DOWN。Redis（默认 `localhost:6379`）同为**可选**前置：未启动时进度投影写入自动降级（仅记 `redis_progress_write_failed` 日志），任务执行与查询均不受影响，`/actuator/health` 会因 redis 组件显示 DOWN。
+前置条件：JDK 21、Node.js ≥ 18、MySQL（本机 3306 端口存在 `flowhub` 数据库与 `flowhub/flowhub` 账号，见下方数据源说明；首次运行需联网下载依赖）。RabbitMQ 为**可选**前置（默认 `localhost:5672`，guest/guest）：未启动时后端仍可正常启动、创建接口可用，仅 Outbox 分发器每轮记录 `outbox_publish_deferred` 日志、消费监听容器后台持续重连，Broker 恢复后自动补发并开始消费；但 `/actuator/health` 会因 rabbit 组件显示 DOWN。Redis（默认 `localhost:6379`）同为**可选**前置：未启动时进度投影写入自动降级（仅记 `redis_progress_write_failed` 日志），任务执行与查询均不受影响，`/actuator/health` 会因 redis 组件显示 DOWN。
 
 想用 Docker 快速起 RabbitMQ：仓库根目录执行 `docker compose up -d rabbitmq`（管理台 `http://localhost:15672`，guest/guest；健康检查 `rabbitmq-diagnostics ping`，拓扑由应用启动时自动声明，见 `docker-compose.yml`）。该编排不含 MySQL——MySQL 保持与既有环境共存单独启动，避免 3306 端口冲突。
 
@@ -23,7 +23,7 @@
 
 - 首次运行会自动执行 `npm install`；
 - 随后打开两个窗口分别运行后端（8080）与前端（5174）；
-- 浏览器访问 <http://localhost:5174>，后端日志出现 `Started ExportFlowApplication` 即就绪；
+- 浏览器访问 <http://localhost:5174>，后端日志出现 `Started FlowHubApplication` 即就绪；
 - 关闭对应窗口即停止对应服务。
 
 ### 手动启动（等价方式）
@@ -81,7 +81,7 @@ export-flow/
 ├── backend/                   # Spring Boot 后端
 │   ├── mvnw / mvnw.cmd        # Maven Wrapper（使用 .mvn/wrapper/maven-wrapper.jar）
 │   ├── scripts/               # 脚本（start.bat 一键启动、seed-demo-data.sh 演示数据生成）
-│   └── src/main/java/com/example/exportflow/
+│   └── src/main/java/com/example/flowhub/
 │       ├── common/web/        # 横切 Web 基础设施
 │       │   ├── api/           #   统一响应 Envelope（ApiResponse/ApiResponseAdvice/RawResponse）
 │       │   ├── error/         #   错误码、业务异常、全局异常处理
@@ -132,7 +132,7 @@ export-flow/
 
 - **统一响应 Envelope**：所有 JSON 接口返回 `{code, message, data, trace_id}`，字段风格为 snake_case（对齐 be-td.md 4.2/4.3 示例）；`ApiResponseAdvice` 将控制器返回的裸对象自动包装为 Envelope，标注 `@RawResponse` 或返回 `Resource`/SSE/流式的接口保持原生响应。
 - **API v1 统一前缀**：`ApiWebMvcConfiguration` 为所有 `@RestController` 统一追加 `/api/v1` 前缀，控制器只声明相对路径，版本号集中维护。
-- **trace_id 链路**：`TraceIdSupport` + `MdcScope` 为每个请求生成/透传 trace_id，写入 MDC（日志可打印）、响应头 `X-Trace-Id` 与响应体；`MdcTaskDecorator` 使异步线程池（`exportFlowTaskExecutor`）继承请求的 trace_id，贯穿异步链路。
+- **trace_id 链路**：`TraceIdSupport` + `MdcScope` 为每个请求生成/透传 trace_id，写入 MDC（日志可打印）、响应头 `X-Trace-Id` 与响应体；`MdcTaskDecorator` 使异步线程池（`flowHubTaskExecutor`）继承请求的 trace_id，贯穿异步链路。
 - **错误路径**：参数校验失败返回 400 + `VALIDATION_ERROR` Envelope（`page_size=0`、非法枚举值、区间颠倒等可复现）；请求体 Bean Validation 失败时 Envelope 的 `data.field_errors` 输出「字段路径 → 文案」对象映射（`GlobalExceptionHandler` + `FieldErrorData`）。
 - **订单条件查询**：状态/渠道/币种多值筛选、姓名模糊、订单号前缀、手机号精确、金额与时间区间、排序白名单（`sort=total_amount,desc`），全契约见 [docs/order-query-design.md](docs/order-query-design.md)；入参 record + `@BindParam` 构造器绑定，各层显式空值防御。
 - **导出任务创建接口**：`POST /api/v1/export-jobs`（`Idempotency-Key` 头 + selection 勾选/筛选判别联合 + 9 列白名单，契约见 be-td.md 4.5 与 [docs/export-http-boundary-plan.md](docs/export-http-boundary-plan.md)）——DTO 跨字段校验 → Command 规范化（ID 去重排序/列白名单重排/文件名清理/筛选快照转 `OrderCriteria`）→ 业务校验（存在性、筛选命中 0 行/超上限；`snapshotByCriteria` 单查询统计命中数与范围内最大订单 ID 作为高水位）→ 幂等判断（request hash SHA-256，相同复用/不同 409）→ 同事务写 `export_jobs`(PENDING) + `outbox_events`，成功返回 202 + `{job_id, job_no, status, total_rows}`。筛选命中上限可经 `export.filter-max-rows` 配置（默认 500000）。
@@ -167,7 +167,7 @@ VITE_API_BASE_URL=http://localhost:8080
 ## 常见问题
 
 - **后端窗口提示 "mvnw.cmd 不是内部或外部命令"**：部分环境（如 Git Bash 派生进程）携带 `NoDefaultCurrentDirectoryInExePath=1`，禁止 cmd 从当前目录查找可执行文件。`start.bat` 已在脚本内清除该变量并用 `.\mvnw.cmd` 显式路径调用，不受影响；若在其它终端手动执行，请同样使用 `.\mvnw.cmd` 写法。
-- **后端首次启动较慢**：Maven Wrapper 首次需下载依赖（本机 Maven 仓库已缓存 Spring Boot 3.3.2 时通常几十秒内完成），以窗口出现 `Started ExportFlowApplication` 为准。
+- **后端首次启动较慢**：Maven Wrapper 首次需下载依赖（本机 Maven 仓库已缓存 Spring Boot 3.3.2 时通常几十秒内完成），以窗口出现 `Started FlowHubApplication` 为准。
 - **端口冲突**：后端 8080、前端 5174 被占用时无法启动，先关闭旧的服务窗口（Vite 配置了 `strictPort`，不会静默换端口）。
 - **`/actuator/health` 显示 DOWN**：RabbitMQ 未启动时 rabbit 健康组件为 DOWN（db 组件不受影响，应用功能正常，仅消息投递与消费延迟）。启动本机 RabbitMQ 后即恢复 UP，积压的 Outbox 事件由分发器自动补发、堆积的消息由消费者开始消费。`management.endpoint.health.show-details` 已设为 `always`，健康响应携带 db/rabbit/redis 组件细分，前端顶栏健康徽标（15s 轮询）的 Tooltip 据此展示各组件状态。
 

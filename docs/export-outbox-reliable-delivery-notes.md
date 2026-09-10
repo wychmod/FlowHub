@@ -168,7 +168,7 @@ Job 已 RUNNING 而 Outbox 早已 published、Outbox 未发布而 Job 停在 PEN
 ### P0 —— 可靠投递管道（本章范围，最先做）✅ 已全部实现
 
 1. ✅ 引入 `spring-boot-starter-amqp` 依赖；`application.yml` 配置连接 + `publisher-confirm-type: correlated`、`publisher-returns: true`、`mandatory: true`。
-2. ✅ `RabbitConfig`：Exchange/Queue/Binding/DLX 常量与 Bean（durable、direct、routing key `export.job.create`）；`@EnableScheduling` 置于主启动类 `ExportFlowApplication`。
+2. ✅ `RabbitConfig`：Exchange/Queue/Binding/DLX 常量与 Bean（durable、direct、routing key `export.job.create`）；`@EnableScheduling` 置于主启动类 `FlowHubApplication`。
 3. ✅ `ExportJobMessage` 消息契约 record（schema_version/message_id/job_id/event_version + `isSupported()`），消息 Header 写入 `X-Trace-Id`。
 4. ✅ `OutboxEventMapper` 补 `findUnpublished()`（WHERE published_at IS NULL AND 聚合/类型过滤，ORDER BY created_at,id）与 `markPublished()`（带 `AND published_at IS NULL` 单向条件）。
 5. ✅ `OutboxDispatcher`：@Scheduled 扫描 → 构造消息（message_id 由 outbox id 派生）→ send + 等待 Confirm → ACK 且无 Returned 才 markPublished；异常/NACK/Returned/超时统一保留并记 `outbox_publish_deferred` 日志。

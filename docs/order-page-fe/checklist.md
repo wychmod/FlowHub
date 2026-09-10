@@ -7,7 +7,7 @@
 
 | 项 | 要求 |
 |---|---|
-| 后端 | 本机 3306 MySQL（`exportflow` 库 + seed 演示数据，建议 20 万行）；后端 8080 启动（`.\mvnw.cmd spring-boot:run`） |
+| 后端 | 本机 3306 MySQL（`flowhub` 库 + seed 演示数据，建议 20 万行）；后端 8080 启动（`.\mvnw.cmd spring-boot:run`） |
 | 前端 | `npm run dev`，访问 http://localhost:5174，打开 DevTools Network 与 Console |
 | 失败注入 | 「停掉后端」用于 AC15/AC16 与场景 3；恢复后端后继续 |
 

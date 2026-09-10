@@ -9,7 +9,7 @@
   2. 查询列显式别名为驼峰，配合 arg-name-based-constructor-auto-mapping 按构造器参数名
      装配 ImportJobEntity record。
 -->
-<mapper namespace="com.example.exportflow.orderimport.mapper.ImportJobMapper">
+<mapper namespace="com.example.flowhub.orderimport.mapper.ImportJobMapper">
 
     <!-- 创建导入任务（初始状态固定 PENDING，时间由应用写入）。 -->
     <insert id="insert">
@@ -46,21 +46,21 @@
     </sql>
 
     <!-- 按主键查询（执行器加载任务快照）。 -->
-    <select id="selectById" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+    <select id="selectById" resultType="com.example.flowhub.orderimport.entity.ImportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM import_jobs
         WHERE id = #{jobId}
     </select>
 
     <!-- 按任务编号查询（创建后取回自增 id 供 Outbox aggregate_id 与响应使用）。 -->
-    <select id="selectByJobNo" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+    <select id="selectByJobNo" resultType="com.example.flowhub.orderimport.entity.ImportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM import_jobs
         WHERE job_no = #{jobNo}
     </select>
 
     <!-- 分页查询(导入任务列表)：status 非空时按状态过滤，按创建时间倒序 + id 倒序稳定排序。 -->
-    <select id="findPage" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+    <select id="findPage" resultType="com.example.flowhub.orderimport.entity.ImportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM import_jobs
         <where>
@@ -193,7 +193,7 @@
 
     <!-- 到期扫描（清理）：SUCCEEDED/PARTIAL 且已过保留期，走 (status, expired_at) 索引，
          按到期先后限量处理（错误报告随工单一并清理）。 -->
-    <select id="findExpired" resultType="com.example.exportflow.orderimport.entity.ImportJobEntity">
+    <select id="findExpired" resultType="com.example.flowhub.orderimport.entity.ImportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM import_jobs
         WHERE status IN ('SUCCEEDED', 'PARTIAL')

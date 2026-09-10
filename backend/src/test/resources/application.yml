@@ -4,7 +4,7 @@
 # Flyway 在测试上下文自动执行 db/migration 迁移（spring.flyway.enabled 默认即为 true）。
 spring:
   datasource:
-    url: jdbc:h2:mem:exportflow_test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:mem:flowhub_test;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
     password: ""
   # 消费监听容器不自启：测试上下文无真实 Broker，启动容器只会反复重连拖垮测试；
@@ -40,7 +40,7 @@ export:
   cleanup-cron: "-"
   # 测试用隔离文件根：避免各测试上下文的启动恢复/孤儿对账扫描真实 export-files 目录（dev 产物/测试残留）。
   files:
-    dir: ${java.io.tmpdir}/exportflow-test-files
+    dir: ${java.io.tmpdir}/flowhub-test-files
 
 # 导入模块测试覆盖：Outbox 分发 / SSE 心跳 / 维护调度静默，错误报告缓冲收敛（直接方法调用验证）。
 import:
@@ -51,4 +51,4 @@ import:
   cleanup-cron: "-"
   # 测试用隔离文件根：启动恢复/孤儿对账扫描隔离 tmp 目录，不碰 dev 的 import-files 产物。
   files:
-    dir: ${java.io.tmpdir}/exportflow-test-import-files
+    dir: ${java.io.tmpdir}/flowhub-test-import-files

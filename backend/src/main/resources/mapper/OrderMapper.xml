@@ -9,7 +9,7 @@
      白名单映射（column()/name()），不包含任何用户输入，杜绝 SQL 注入；
   3. 所有动态条件都有 null/空集合守卫（空值契约见 OrderCriteria：null/空集合 = 无条件）。
 -->
-<mapper namespace="com.example.exportflow.order.mapper.OrderMapper">
+<mapper namespace="com.example.flowhub.order.mapper.OrderMapper">
 
     <!--
       筛选条件公共片段（裸条件，各条件以 AND 开头）：消费方自行决定是否以 <where> 包裹。
@@ -74,7 +74,7 @@
       按构造器参数名装配 Order record（record 无 setter，走构造器映射）。
       排序契约：主排序 + id tie-breaker，方向与主排序一致（设计文档第三节第 3 点）。
     -->
-    <select id="selectPage" resultType="com.example.exportflow.order.entity.Order">
+    <select id="selectPage" resultType="com.example.flowhub.order.entity.Order">
         SELECT
             id,
             order_no       AS orderNo,

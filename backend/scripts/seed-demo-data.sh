@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# ExportFlow 演示数据生成脚本（MySQL / orders 表）
+# FlowHub 演示数据生成脚本（MySQL / orders 表）
 # =====================================================================
 # 作用：当 orders 表为空时，批量生成确定性的演示订单数据；
 #       若表中已有数据则直接跳过，绝不覆盖或清空任何已有数据。
@@ -14,8 +14,8 @@
 # 也可通过环境变量覆盖：DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME。
 #
 # 前置条件：
-#   1. 本机 MySQL 已启动（默认 127.0.0.1:3306，存在 exportflow 库与
-#      exportflow/exportflow 账号）；
+#   1. 本机 MySQL 已启动（默认 127.0.0.1:3306，存在 flowhub 库与
+#      flowhub/flowhub 账号）；
 #   2. 后端至少成功启动过一次（由 Flyway 完成建表迁移，orders 表已存在）。
 # =====================================================================
 
@@ -28,9 +28,9 @@ SEED_SQL_FILE="$SCRIPT_DIR/sql/seed-demo-data.sql"
 SEED_ROWS="${SEED_ROWS:-200000}"        # 生成的订单行数
 DB_HOST="${DB_HOST:-127.0.0.1}"         # 与 application.yml 的 datasource.url 对应
 DB_PORT="${DB_PORT:-3306}"
-DB_USER="${DB_USER:-exportflow}"
-DB_PASSWORD="${DB_PASSWORD:-exportflow}"
-DB_NAME="${DB_NAME:-exportflow}"
+DB_USER="${DB_USER:-flowhub}"
+DB_PASSWORD="${DB_PASSWORD:-flowhub}"
+DB_NAME="${DB_NAME:-flowhub}"
 
 # 行数合法性校验：SQL 侧递归 CTE 上限设为 100 万，超出直接拒绝
 if ! [[ "$SEED_ROWS" =~ ^[0-9]+$ ]] || [[ "$SEED_ROWS" -lt 1 ]] || [[ "$SEED_ROWS" -gt 1000000 ]]; then
@@ -81,7 +81,7 @@ table_count="$(mysql_run --execute "
   WHERE table_schema = DATABASE()
     AND table_name IN ('orders', 'export_jobs', 'export_job_attempts', 'outbox_events')")"
 if [[ "$table_count" != "4" ]]; then
-  echo "错误：数据库 $DB_NAME 中缺少 ExportFlow 业务表（预期 4 张，实际 $table_count 张）。" >&2
+  echo "错误：数据库 $DB_NAME 中缺少 FlowHub 业务表（预期 4 张，实际 $table_count 张）。" >&2
   echo "      请先启动一次后端（./mvnw.cmd spring-boot:run）让 Flyway 完成建表迁移。" >&2
   exit 2
 fi

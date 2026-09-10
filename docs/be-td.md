@@ -1,10 +1,10 @@
-# ExportFlow 后端技术设计文档（Backend TD）
+# FlowHub 后端技术设计文档（Backend TD）
 
 | 文档属性 | 内容 |
 | --- | --- |
 | 文档版本 | v1.0 |
 | 文档状态 | Draft |
-| 项目代号 | ExportFlow |
+| 项目代号 | FlowHub |
 | 关联文档 | `prd.md`、`fe-td.md` |
 
 ## 1. 目标与范围
@@ -35,7 +35,7 @@
 后端按**横切 Web 基础设施**和**订单、导出两个业务模块**组织：
 
 ```text
-backend/src/main/java/com/example/exportflow/
+backend/src/main/java/com/example/flowhub/
 ├── common/web/           # 横切 Web 基础设施
 │   ├── api/              # 统一响应封装、API 常量
 │   ├── error/            # 全局异常、错误码

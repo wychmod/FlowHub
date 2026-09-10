@@ -3,12 +3,12 @@ server:
 
 spring:
   application:
-    name: export-flow-backend
+    name: flow-hub-backend
   # MySQL 数据源。Flyway 依赖该 DataSource，在应用启动时自动执行 src/main/resources/db/migration 下的迁移脚本。
   datasource:
-    url: jdbc:mysql://localhost:3306/exportflow?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC
-    username: exportflow
-    password: exportflow
+    url: jdbc:mysql://localhost:3306/flowhub?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC
+    username: flowhub
+    password: flowhub
   flyway:
     enabled: true
   # RabbitMQ 连接与发布确认闭环（Outbox 分发器用）：correlated confirm 使每次发送可对上确认，

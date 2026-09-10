@@ -6,7 +6,7 @@
 
 | 项 | 要求 |
 |---|---|
-| 后端 | 本机 3306 MySQL（`exportflow` 库）；后端 8080 启动（`.\mvnw.cmd spring-boot:run`）。RabbitMQ/Redis 建议起（SSE/进度更真实；不起则验证降级路径）|
+| 后端 | 本机 3306 MySQL（`flowhub` 库）；后端 8080 启动（`.\mvnw.cmd spring-boot:run`）。RabbitMQ/Redis 建议起（SSE/进度更真实；不起则验证降级路径）|
 | 前端 | `npm run dev`，访问 http://localhost:5174，开 DevTools Network + Console |
 | 测试夹具 | 用「下载模板」得到合法 `.xlsx`；复制若干行、故意把某行订单状态改成非法值 / 塞重复订单号 / 改表头列名，分别造出 SUCCEEDED、PARTIAL、结构 400 三类样本 |
 | 失败注入 | 「停后端」用于 AC2/AC11/AC12；「停 RabbitMQ」用于 AC11 降级 |

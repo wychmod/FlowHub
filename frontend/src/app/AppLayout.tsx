@@ -83,7 +83,7 @@ export function AppLayout({ selectedKey, onSelect, children }: AppLayoutProps) {
                 letterSpacing: 0.5,
               }}
             >
-              ExportFlow
+              FlowHub
             </span>
           )}
         </div>

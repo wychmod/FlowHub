@@ -7,7 +7,7 @@
   1. published_at 省略（未发布即 NULL，分发器发布后回填）；
   2. trace_id 为 V7 新增列，创建入口写入以便异步链路延续 trace 上下文。
 -->
-<mapper namespace="com.example.exportflow.export.mapper.OutboxEventMapper">
+<mapper namespace="com.example.flowhub.export.mapper.OutboxEventMapper">
 
     <!-- 插入 Outbox 事件（与导出任务同事务写入，无需回填主键）。 -->
     <insert id="insert">
@@ -21,7 +21,7 @@
     </insert>
 
     <!-- 捞取未发布事件（published_at IS NULL 走 idx_outbox_unpublished 前缀；LIMIT 参数化，MySQL/H2 均支持）。 -->
-    <select id="findUnpublished" resultType="com.example.exportflow.export.entity.OutboxEventEntity">
+    <select id="findUnpublished" resultType="com.example.flowhub.export.entity.OutboxEventEntity">
         SELECT
             id,
             aggregate_type AS aggregateType,

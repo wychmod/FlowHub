@@ -72,7 +72,7 @@
 
 若不建立**状态所有权（State Ownership）**，会掉进三个泥潭：缓存反噬事实（Redis 里 80%、MySQL 里 70%，页面该信谁？）、伪状态广播（事务回滚了，前端却收到「成功」）、前端乱序覆盖（迟到的旧事件把 80% 刷回 60%）。
 
-ExportFlow 的答案：**MySQL 保存任务事实；Redis 保存可重建的进度投影；SSE 尽力通知在线页面；HTTP 查询在断线、终态和页面恢复时重新校准。**
+FlowHub 的答案：**MySQL 保存任务事实；Redis 保存可重建的进度投影；SSE 尽力通知在线页面；HTTP 查询在断线、终态和页面恢复时重新校准。**
 
 ---
 
@@ -266,7 +266,7 @@ RUNNING 状态的缓存 percent 最高 99：最后一批已写完时，Workbook 
 | SSE 响应不被 Envelope 包装 | ✅ `ApiResponseAdvice` 已放行 `SseEmitter`/流式响应 |
 | 终态收敛（失败侧） | ✅ `ExportJobService.markFailed`（RUNNING 单向条件，同事务收敛 Attempt） |
 | 前端消费设计 | ✅ `docs/export-sse-design.md`：`useExportEvents` + `job_version` 版本栅栏 + HTTP 校准 + 轮询降级（蓝本参考项目 project-export-flow） |
-| trace 链路贯穿异步线程 | ✅ `MdcTaskDecorator` + `exportFlowTaskExecutor` |
+| trace 链路贯穿异步线程 | ✅ `MdcTaskDecorator` + `flowHubTaskExecutor` |
 
 ### 5.2 与教程口径的三个实现差距（本章落地的核心工作）
 

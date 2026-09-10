@@ -190,7 +190,7 @@ public record PublishedFile(String relativePath, long sizeBytes, Path absolutePa
 
 ### 4.8 「存在」≠「可使用」：四种状态拆开判断
 
-`Files.exists()` 只回答「目录项在不在」，远不等于可下载。ExportFlow 把判断拆给不同角色：
+`Files.exists()` 只回答「目录项在不在」，远不等于可下载。FlowHub 把判断拆给不同角色：
 
 | 判断 | 负责方 |
 |---|---|

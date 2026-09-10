@@ -8,7 +8,7 @@
   2. attempt_no 用 MAX+1 子查询生成：聚合无 GROUP BY 恒返回一行，首条记录亦插出 attempt_no=1，
      重试后不覆盖旧行（唯一索引 uk_attempt_job_no 从库层兜底）。
 -->
-<mapper namespace="com.example.exportflow.export.mapper.ExportJobAttemptMapper">
+<mapper namespace="com.example.flowhub.export.mapper.ExportJobAttemptMapper">
 
     <!-- 插入 RUNNING 尝试（与抢占同一事务提交，保证状态切换与审计记录原子生效）。 -->
     <insert id="insertRunning">

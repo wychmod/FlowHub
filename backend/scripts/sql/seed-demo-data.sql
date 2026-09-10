@@ -1,5 +1,5 @@
 -- =====================================================================
--- ExportFlow 演示数据生成脚本（orders 表）
+-- FlowHub 演示数据生成脚本（orders 表）
 -- 由 backend/scripts/seed-demo-data.sh 在确认 orders 表为空后调用。
 --
 -- 设计要点：

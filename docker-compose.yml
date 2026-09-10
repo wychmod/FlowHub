@@ -1,4 +1,4 @@
-# ExportFlow 本地基础设施编排。
+# FlowHub 本地基础设施编排。
 #
 # 现状：本仓库要求 MySQL 与 RabbitMQ 作为外部依赖运行（见 AGENTS.md「一键启动」）。
 # RabbitMQ 为可选前置——未启动时后端照常运行，仅 Outbox 分发器记 outbox_publish_deferred、
@@ -9,13 +9,13 @@
 #   管理台：http://localhost:15672  (guest/guest)
 #   连接：  amqp://localhost:5672  (guest/guest，与 application.yml 默认一致)
 #
-# 后端连的 MySQL（localhost:3306，exportflow/exportflow）不属于本次编排，仍按既有方式单独启动，
+# 后端连的 MySQL（localhost:3306，flowhub/flowhub）不属于本次编排，仍按既有方式单独启动，
 # 以免与本机已有实例端口冲突。
 
 services:
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: exportflow-rabbitmq
+    container_name: flowhub-rabbitmq
     ports:
       - "5672:5672"   # AMQP（后端连接）
       - "15672:15672" # 管理台
@@ -35,7 +35,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: exportflow-redis
+    container_name: flowhub-redis
     ports:
       - "6379:6379"   # 与 application.yml 的 spring.data.redis 默认一致（host/port，免认证）
     volumes:

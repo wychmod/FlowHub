@@ -399,7 +399,7 @@ UPDATE import_jobs SET status='RUNNING', attempt_count=attempt_count+1, version=
 | `import.sse.heartbeat-ms` | `15000` | 心跳（测试置大静默） |
 | `spring.servlet.multipart.max-file-size/max-request-size` | `10MB/10MB` | 容器层拦截（主 yml） |
 
-生产前置：MySQL、RabbitMQ（可选，未启动仅 Outbox 延迟 + 组件 DOWN）、Redis（可选，投影降级）。启动后端需本机 3306 MySQL 存在 `exportflow` 库账号。
+生产前置：MySQL、RabbitMQ（可选，未启动仅 Outbox 延迟 + 组件 DOWN）、Redis（可选，投影降级）。启动后端需本机 3306 MySQL 存在 `flowhub` 库账号。
 
 ---
 

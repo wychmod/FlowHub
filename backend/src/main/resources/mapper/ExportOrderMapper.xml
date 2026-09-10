@@ -7,21 +7,21 @@
   命中统计（及订单页查询）共享同一份 WHERE 定义，杜绝「创建统计一套条件、执行批查另一套」；
   Keyset 主干（id > lastId AND id <= maxOrderId）为所有导出模式共有的边界。
 -->
-<mapper namespace="com.example.exportflow.export.mapper.ExportOrderMapper">
+<mapper namespace="com.example.flowhub.export.mapper.ExportOrderMapper">
 
     <!-- 创建时一致性快照：一次查询同时统计命中行数与最大订单 ID（高水位）。 -->
-    <select id="snapshotByCriteria" resultType="com.example.exportflow.export.entity.ExportSelectionSnapshot">
+    <select id="snapshotByCriteria" resultType="com.example.flowhub.export.entity.ExportSelectionSnapshot">
         SELECT
             COUNT(*)             AS filterCount,
             COALESCE(MAX(id), 0) AS maxOrderIdAtCreate
         FROM orders
         <where>
-            <include refid="com.example.exportflow.order.mapper.OrderMapper.criteriaConditions"/>
+            <include refid="com.example.flowhub.order.mapper.OrderMapper.criteriaConditions"/>
         </where>
     </select>
 
     <!-- Keyset 批查：主干边界 + 共享筛选片段（SELECTED_IDS 走 IN、FILTER 走动态条件），按 id ASC 恒定成本推进。 -->
-    <select id="findBatch" resultType="com.example.exportflow.export.entity.ExportOrderRow">
+    <select id="findBatch" resultType="com.example.flowhub.export.entity.ExportOrderRow">
         SELECT
             id,
             order_no          AS orderNo,
@@ -36,7 +36,7 @@
         FROM orders
         WHERE id &gt; #{lastId}
           AND id &lt;= #{maxOrderId}
-        <include refid="com.example.exportflow.order.mapper.OrderMapper.criteriaConditions"/>
+        <include refid="com.example.flowhub.order.mapper.OrderMapper.criteriaConditions"/>
         ORDER BY id ASC
         LIMIT #{batchSize}
     </select>

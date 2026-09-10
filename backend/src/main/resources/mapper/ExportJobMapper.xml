@@ -8,7 +8,7 @@
   2. 查询列显式别名为驼峰，配合 arg-name-based-constructor-auto-mapping 按构造器参数名
      装配 ExportJobEntity record（record 无 setter，走构造器映射）。
 -->
-<mapper namespace="com.example.exportflow.export.mapper.ExportJobMapper">
+<mapper namespace="com.example.flowhub.export.mapper.ExportJobMapper">
 
     <!-- 创建导出任务（初始状态固定 PENDING，时间由应用写入）。
          record 无 setter，不使用 useGeneratedKeys 回填主键；自增 id 由调用方按幂等键查询取回。 -->
@@ -53,14 +53,14 @@
     </sql>
 
     <!-- 按主键查询（执行器加载任务快照）。 -->
-    <select id="selectById" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+    <select id="selectById" resultType="com.example.flowhub.export.entity.ExportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM export_jobs
         WHERE id = #{jobId}
     </select>
 
     <!-- 分页查询(导出任务列表)：status 非空时按状态过滤，按创建时间倒序 + id 倒序稳定排序。 -->
-    <select id="findPage" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+    <select id="findPage" resultType="com.example.flowhub.export.entity.ExportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM export_jobs
         <where>
@@ -79,7 +79,7 @@
     </select>
 
     <!-- 按幂等键查询（唯一约束保证至多一条）。 -->
-    <select id="selectByIdempotencyKey" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+    <select id="selectByIdempotencyKey" resultType="com.example.flowhub.export.entity.ExportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM export_jobs
         WHERE idempotency_key = #{idempotencyKey}
@@ -184,7 +184,7 @@
     </update>
 
     <!-- 到期扫描（清理）：仅 SUCCEEDED 且已过保留期，走 (status, expired_at) 索引，按到期先后限量处理。 -->
-    <select id="findExpiredSuccess" resultType="com.example.exportflow.export.entity.ExportJobEntity">
+    <select id="findExpiredSuccess" resultType="com.example.flowhub.export.entity.ExportJobEntity">
         SELECT <include refid="jobColumns"/>
         FROM export_jobs
         WHERE status = 'SUCCEEDED'

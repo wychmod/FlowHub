@@ -1,10 +1,10 @@
-# ExportFlow 前端技术设计文档（Frontend TD）
+# FlowHub 前端技术设计文档（Frontend TD）
 
 | 文档属性 | 内容 |
 | --- | --- |
 | 文档版本 | v1.0 |
 | 文档状态 | Draft |
-| 项目代号 | ExportFlow |
+| 项目代号 | FlowHub |
 | 关联文档 | `prd.md`、`be-td.md` |
 
 ## 1. 目标与范围
@@ -23,7 +23,7 @@
 
 ## 3. 目录结构与职责划分
 
-ExportFlow 前端按**应用层、API 层和业务 feature** 三层组织，使页面、接口与业务状态按功能聚合，降低跨目录跳转成本。
+FlowHub 前端按**应用层、API 层和业务 feature** 三层组织，使页面、接口与业务状态按功能聚合，降低跨目录跳转成本。
 
 ```text
 frontend/src/

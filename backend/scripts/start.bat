@@ -12,7 +12,7 @@ for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
 cd /d "%ROOT%"
 
 echo ================================================================
-echo   ExportFlow 一键启动
+echo   FlowHub 一键启动
 echo   前端 http://localhost:5174    后端 http://localhost:8080
 echo ================================================================
 echo.
@@ -29,11 +29,11 @@ if not exist "frontend\node_modules" (
 echo.
 
 echo [2/3] 启动后端（Spring Boot，端口 8080）...
-start "ExportFlow Backend 8080" /D "%ROOT%\backend" cmd /k .\mvnw.cmd spring-boot:run
+start "FlowHub Backend 8080" /D "%ROOT%\backend" cmd /k .\mvnw.cmd spring-boot:run
 echo.
 
 echo [3/3] 启动前端（Vite，端口 5174）...
-start "ExportFlow Frontend 5174" /D "%ROOT%\frontend" cmd /k npm run dev
+start "FlowHub Frontend 5174" /D "%ROOT%\frontend" cmd /k npm run dev
 echo.
 
 echo 启动指令已发出：
@@ -42,7 +42,7 @@ echo   - 订单接口：  http://localhost:8080/api/v1/orders
 echo   - 健康检查：  http://localhost:8080/actuator/health
 echo.
 echo 两个新窗口分别承载前后端日志，关闭窗口即停止对应服务。
-echo 后端首次启动需下载 Maven 依赖，待窗口出现 "Started ExportFlowApplication" 即就绪。
+echo 后端首次启动需下载 Maven 依赖，待窗口出现 "Started FlowHubApplication" 即就绪。
 echo.
 pause
 exit /b 0

@@ -6,7 +6,7 @@
   冲突策略（设计决策点 1/2）：文件内去重 + DB 预查（IN 命中即视为冲突跳过）+
   uk_orders_order_no 唯一约束兜底（并发/极端场景 DuplicateKey 回退为跳过）。
 -->
-<mapper namespace="com.example.exportflow.orderimport.mapper.ImportOrderMapper">
+<mapper namespace="com.example.flowhub.orderimport.mapper.ImportOrderMapper">
 
     <!-- 冲突预查：一次 IN 查询返回已存在的订单号，供执行体裁决是否跳过（空集合由调用方防御不执行）。 -->
     <select id="selectExistingOrderNos" resultType="java.lang.String">
