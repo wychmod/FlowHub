@@ -72,3 +72,7 @@ test-imports/
 ### Windows 系统文件 ###
 Thumbs.db
 Desktop.ini
+
+### Playwright E2E 测试产物（失败快照/截图/报告，不入库） ###
+frontend/test-results/
+frontend/playwright-report/

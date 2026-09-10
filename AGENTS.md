@@ -97,7 +97,7 @@ npm run test:watch
 
 **性能基线要求（契约）**：性能采集须在受控 JVM `-Xmx512m` + 运行令牌下执行，校验 JVM PID 与身份后记录：实际数据量、创建耗时、到达终态耗时、峰值 JVM 内存(RSS)、文件大小、机器环境。**该带令牌/PID 校验的性能脚本本仓库尚未落地（属参考项目的交付物）**，落库前不伪造基准。
 
-**E2E 运行方式**：Playwright 真实浏览器链路（打开订单页→筛选/勾选→创建 Job→PENDING/RUNNING→SUCCEEDED→下载→校验工作簿表头/行数/所选订单）。前置：原生依赖健康 + orders 已有确定性数据（本机为 200,000 行 `EF2026-*`，恰落 10 万–30 万区间，无需重装载）。**Playwright 工程（`.spec.ts`/配置文件）本仓库尚未落地**，需先引入 @playwright/test 才可跑。
+**E2E 运行方式**：Playwright 真实浏览器链路（订单页筛选/排序/翻页/勾选 → 导出创建 → SSE 实时进度 → 下载校验 → 导入弹窗成功/失败路径 → 导入任务页终态 → 导入数据核对），工程已落地于 `frontend/e2e/`（`full-flow.spec.ts` + `helpers.ts` 手写 xlsx 构造）与 `frontend/playwright.config.ts`（本机 Chrome `channel: 'chrome'` headless，经 Vite 代理 5174 打真实后端；不配 webServer，前后端需已在运行）。运行：`cd frontend && npx playwright test`。每个用例断言无未捕获 JS 错误与 console error（白名单：favicon 404、失败路径故意触发的业务接口 4xx）。
 
 **已知未实现能力**：鉴权（无登录/权限/job 归属校验）、对象存储（文件在本地 exportRoot，非 OSS/S3）、多实例部署（SSE 广播为进程内连接表 + 单机 DB/文件，无跨实例 fanout 与分布式锁）。
 
