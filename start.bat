@@ -6,9 +6,10 @@ rem 部分环境（如 Git Bash 派生的进程）会携带 NoDefaultCurrentDire
 rem 禁止 cmd 从当前目录查找可执行文件，导致子窗口里 mvnw.cmd 报"不是内部或外部命令"。
 rem 这里显式清除，保证本脚本及其子窗口始终可用。
 set "NoDefaultCurrentDirectoryInExePath="
-rem 本脚本位于 backend/scripts/ 下，仓库根目录为其上两级；统一换算为绝对路径，
+rem 本脚本位于仓库根目录，%~dp0 即为仓库根的绝对路径；取其并剥离尾反斜杠作为 ROOT，
 rem 保证无论从哪里双击/调用本脚本，工作目录与子窗口路径都指向正确位置。
-for %%I in ("%~dp0..\..") do set "ROOT=%%~fI"
+set "ROOT=%~dp0"
+if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 cd /d "%ROOT%"
 
 echo ================================================================

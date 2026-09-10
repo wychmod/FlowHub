@@ -20,7 +20,7 @@ FlowHub 是一个企业级异步 Excel 导出中心的教学/演示项目。完�
 
 ### 一键启动
 
-在 Windows 环境下，双击 `backend/scripts/start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。**启动后端前需先启动本机 3306 端口的 MySQL（存在 `flowhub` 库与 `flowhub/flowhub` 账号）**，否则 Flyway/数据源初始化会失败。RabbitMQ（默认 `localhost:5672`，guest/guest）为可选前置：未启动时后端照常运行，仅 Outbox 分发器每轮记录 `outbox_publish_deferred` 日志、消费监听容器后台持续重连，且 `/actuator/health` 的 rabbit 组件为 DOWN，Broker 恢复后自动补发并开始消费。如需用 Docker 一键起 RabbitMQ，可在仓库根目录执行 `docker compose up -d rabbitmq`（含 `rabbitmq-diagnostics ping` 健康检查与管理台 `http://localhost:15672` guest/guest）；Redis（活跃进度投影，`localhost:6379` 免认证，含 `redis-cli ping` 健康检查）同样纳入编排，`docker compose up -d redis` 即可（见 `docker-compose.yml`）。该编排不含 MySQL（MySQL 需与本机 3306 端口既有实例共存，避免端口冲突，仍按上述方式单独启动）。
+在 Windows 环境下，双击仓库根目录的 `start.bat`。脚本会自动安装前端依赖（首次），并打开两个窗口分别运行后端（8080）和前端（5174）。**启动后端前需先启动本机 3306 端口的 MySQL（存在 `flowhub` 库与 `flowhub/flowhub` 账号）**，否则 Flyway/数据源初始化会失败。RabbitMQ（默认 `localhost:5672`，guest/guest）为可选前置：未启动时后端照常运行，仅 Outbox 分发器每轮记录 `outbox_publish_deferred` 日志、消费监听容器后台持续重连，且 `/actuator/health` 的 rabbit 组件为 DOWN，Broker 恢复后自动补发并开始消费。如需用 Docker 一键起 RabbitMQ，可在仓库根目录执行 `docker compose up -d rabbitmq`（含 `rabbitmq-diagnostics ping` 健康检查与管理台 `http://localhost:15672` guest/guest）；Redis（活跃进度投影，`localhost:6379` 免认证，含 `redis-cli ping` 健康检查）同样纳入编排，`docker compose up -d redis` 即可（见 `docker-compose.yml`）。该编排不含 MySQL（MySQL 需与本机 3306 端口既有实例共存，避免端口冲突，仍按上述方式单独启动）。
 
 ### 后端（`backend/`）
 
