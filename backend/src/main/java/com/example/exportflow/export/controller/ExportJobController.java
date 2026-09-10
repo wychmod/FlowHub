@@ -2,6 +2,7 @@ package com.example.exportflow.export.controller;
 
 import com.example.exportflow.common.web.error.BusinessException;
 import com.example.exportflow.common.web.param.ParamUtils;
+import com.example.exportflow.common.web.util.ContentDispositionUtils;
 import com.example.exportflow.export.dto.CreateExportJobRequest;
 import com.example.exportflow.export.dto.ExportJobPageResp;
 import com.example.exportflow.export.dto.ListExportJobsRequest;
@@ -27,10 +28,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.regex.Pattern;
-
 /**
  * 导出任务接口（创建入口、列表占位、SSE 事件订阅、人工重试与文件下载）。
  */
@@ -45,9 +42,6 @@ public class ExportJobController {
     /** XLSX 响应类型（下载接口固定输出 Excel 工作簿）。 */
     private static final MediaType XLSX_MEDIA_TYPE =
             MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    /** Content-Disposition filename= 兜底的安全 ASCII 文件名（可见字符且不含引号/反斜杠等转义位）。 */
-    private static final Pattern ASCII_DISPLAY_NAME = Pattern.compile("\\A[\\w. ()\\[\\]-]+\\z");
-
     private final ExportJobService exportJobService;
     private final ExportSseService exportSseService;
 
@@ -103,14 +97,8 @@ public class ExportJobController {
         return ResponseEntity.ok()
                 .contentType(XLSX_MEDIA_TYPE)
                 .contentLength(file.sizeBytes())
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(file.displayName()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDispositionUtils.attachment(file.displayName(), "export.xlsx"))
                 .body(new FileSystemResource(file.absolutePath()));
     }
 
-    /** Content-Disposition 组装：ASCII 兜底 filename + RFC 5987 filename*（非 ASCII 按百分号编码）。 */
-    private static String contentDisposition(String displayName) {
-        String encoded = URLEncoder.encode(displayName, StandardCharsets.UTF_8).replace("+", "%20");
-        String asciiFallback = ASCII_DISPLAY_NAME.matcher(displayName).matches() ? displayName : "export.xlsx";
-        return "attachment; filename=\"" + asciiFallback + "\"; filename*=UTF-8''" + encoded;
     }
-}
