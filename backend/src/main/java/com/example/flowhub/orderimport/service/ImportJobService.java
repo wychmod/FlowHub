@@ -226,7 +226,7 @@ public class ImportJobService {
     /** 结构级校验：数据 Sheet 名、表头恰好 9 列（多列/缺列/名称/顺序不符均拒绝）、空文件、行数超上限。 */
     private void validateStructure(ExcelImportReader.ScanResult scan) {
         if (!ExcelExportWriter.SHEET_NAME.equals(scan.sheetName())) {
-            log.warn("import_sheet_mismatch expected={} actual={}", ExcelExportWriter.SHEET_NAME, scan.sheetName());
+            log.warn("import_sheet_mismatch expected={} actual={}", ExcelExportWriter.SHEET_NAME, preview(scan.sheetName()));
             throw new BusinessException(ImportErrorCode.IMPORT_TEMPLATE_MISMATCH,
                     "模板不匹配：数据 Sheet 必须为「" + ExcelExportWriter.SHEET_NAME + "」");
         }
@@ -256,11 +256,22 @@ public class ImportJobService {
             String expected = columns.get(i).title();
             String actual = scan.headerTitles().get(i);
             if (!expected.equals(actual)) {
-                log.warn("import_header_mismatch column_index={} expected={} actual={}", i, expected, actual);
-                return "第 " + (i + 1) + " 列应为「" + expected + "」，实际为「" + (actual == null ? "缺列" : actual) + "」";
+                log.warn("import_header_mismatch column_index={} expected={} actual={}", i, expected, preview(actual));
+                return "第 " + (i + 1) + " 列应为「" + expected + "」，实际为「"
+                        + (actual == null ? "缺列" : preview(actual)) + "」";
             }
         }
         return null;
+    }
+
+    /** 错误信息回显截断：单元格值可能超长，日志与错误响应只留 50 字符单行预览。 */
+    @Nullable
+    private static String preview(@Nullable String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String singleLine = raw.replaceAll("\\s+", " ").trim();
+        return singleLine.length() <= 50 ? singleLine : singleLine.substring(0, 50) + "…";
     }
 
     /** 条件抢占：CAS 将 PENDING 置 RUNNING，并同事务插入 RUNNING Attempt（两步原子，不可拆分）。 */

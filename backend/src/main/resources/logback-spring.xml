@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  控制台输出异步化：Windows 控制台进入快速编辑选择态时会冻结 stdout，同步 Appender 会把
+  写日志的 HTTP 请求线程无限期卡死。AsyncAppender + neverBlock 保证业务线程永不阻塞，
+  队列写满时丢弃新日志保请求（neverBlock 下不丢已在队列中的消息）。
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+    <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+        <neverBlock>true</neverBlock>
+        <queueSize>2048</queueSize>
+        <appender-ref ref="CONSOLE"/>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="ASYNC_CONSOLE"/>
+    </root>
+</configuration>

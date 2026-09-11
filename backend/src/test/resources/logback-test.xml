@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 测试环境用同步控制台日志：多个测试断言 CapturedOutput 的日志内容，异步 Appender 会引入写入时序竞态。
+     生产环境的异步化（neverBlock）只在 logback-spring.xml 中生效，测试不走该文件。 -->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
