@@ -274,7 +274,6 @@ curl -X POST http://localhost:8080/api/v1/export-jobs \
 flowhub/
 ├── start.bat                     # Windows 一键启动（后端 8080 + 前端 5174）
 ├── docker-compose.yml            # RabbitMQ / Redis 编排（含健康检查）
-├── docs/                         # 设计与迭代文档
 ├── backend/                      # Spring Boot 后端
 │   ├── mvnw / mvnw.cmd           # Maven Wrapper
 │   ├── scripts/                  # seed-demo-data.sh 演示数据生成
@@ -301,7 +300,7 @@ flowhub/
         └── features/
             ├── orders/           #   订单列表页（筛选 + 排序 + 勾选 + 导出/导入入口）
             ├── exports/          #   导出任务页（SSE 实时进度 + 下载/重试 + useExportEvents）
-            └── imports/          #   导入任务页（useImportEvents + PARTIAL + 错误报告）
+            └── import-jobs/      #   导入任务页（useImportEvents + PARTIAL + 错误报告）
 ```
 
 </details>
@@ -325,7 +324,7 @@ cd frontend && npm run build       # 类型检查 + 生产构建
 
 ## 演进路线
 
-已实现：订单查询、导出全链路（受理 → 投递 → 消费 → 读取 → 写盘 → 发布 → 下载 → 恢复）、导入全链路、前端三页与 SSE 实时进度。
+已实现：订单查询、导出全链路（受理 → 投递 → 消费 → 读取 → 写盘 → 发布 → 下载 → 恢复）、导入全链路、前端三页与 SSE 实时进度、Playwright 真实浏览器 E2E 回归。
 
 下一步聚焦**从单机可靠走向分布式可靠**：
 
@@ -333,7 +332,7 @@ cd frontend && npm run build       # 类型检查 + 生产构建
 - [ ] 对象存储接入（文件从本地受控目录迁移 OSS/S3）
 - [ ] 多实例部署（跨实例 SSE fanout、分布式抢占锁、集群调度）
 - [ ] 导出任务详情接口与筛选条件 URL 同步
-- [ ] 性能基准脚本与 Playwright E2E 工程落地
+- [ ] 性能基准脚本落地（带运行令牌与 JVM PID 校验的受控采集）
 
 ---
 
