@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 
 /**
- * 导出任务列表行（be-td.md 4.6 完整字段）。
+ * 导出任务列表行（完整字段）。
  * <p>
  * 字段与 SSE 事件 payload（ExportJobEventPayload）对齐，使前端收到事件后能就地更新缓存行；
  * progress_percent/downloadable 为派生字段，由 Service 层按状态与时间计算；

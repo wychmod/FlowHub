@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 订单列表行，字段与 be-td.md 4.3 响应示例一致（snake_case）。
+ * 订单列表行，字段统一 snake_case。
  * <p>可空列（customer_name/customer_phone 等）序列化保留 null，
  * 前端契约为 {@code string | null}，禁止实体 null 到 VO 的隐式默认值转换。
  */

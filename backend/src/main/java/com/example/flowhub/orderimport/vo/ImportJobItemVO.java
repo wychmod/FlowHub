@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 导入任务列表行（docs/order-import-design.md §5.3 完整字段）。
+ * 导入任务列表行（完整字段）。
  * <p>
  * 字段与 SSE 事件 payload（ImportJobEventPayload）对齐，使前端收到事件后能就地更新缓存行；
  * progress_percent / error_report_available / error_summary 为派生字段，由 Service 层按状态与数据库计算。

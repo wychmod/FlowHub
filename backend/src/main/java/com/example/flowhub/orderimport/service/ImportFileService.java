@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * 导入文件服务（docs/order-import-design.md §6/§7）：受控 importRoot 内的上传落盘、错误报告路径分配与受控解析。
+ * 导入文件服务：受控 importRoot 内的上传落盘、错误报告路径分配与受控解析。
  * <p>
  * 路径安全双层防腐与导出一致：文本层 normalize 拒绝 .. 与绝对路径；物理层逐段符号链接检查 + toRealPath 验真。
  * 目录分层按 {@code <UTC 日期>/<jobNo>/}（jobNo 在受理期已知，上传原件须先于任务落盘）。

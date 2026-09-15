@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * OrderQuery 防御性校验与分页换算单测（docs/order-query-design.md 第四节、第七节）。
+ * OrderQuery 防御性校验与分页换算单测。
  */
 class OrderQueryTest {
 

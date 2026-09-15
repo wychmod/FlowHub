@@ -3,7 +3,7 @@ package com.example.flowhub.orderimport.vo;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 上传受理成功输出（HTTP 202 的 data，docs/order-import-design.md §5.2）。
+ * 上传受理成功输出（HTTP 202 的 data）。
  */
 public record ImportJobAcceptedVO(
         @JsonProperty("job_id")

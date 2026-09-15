@@ -107,7 +107,7 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
     }
   }, [data, isPlaceholderData]);
 
-  // 创建导出任务：幂等键在点击「确认创建」时解析——同 payload 重试复用同一 Key，成功后失效（PRD 7.4.2）
+  // 创建导出任务：幂等键在点击「确认创建」时解析——同 payload 重试复用同一 Key，成功后失效
   const createMutation = useMutation<
     ExportJobCreated,
     ApiError,
@@ -378,7 +378,7 @@ export function OrderListPage({ onNavigate }: OrderListPageProps) {
             setExportModal(null);
           }}
           onSubmit={(payload) => {
-            // 同 payload 重试复用同一幂等键；修改表单（payload 变化）重新生成（PRD 7.4.2）
+            // 同 payload 重试复用同一幂等键；修改表单（payload 变化）重新生成
             attemptRef.current = resolveIdempotencyKey(attemptRef.current, payload);
             createMutation.mutate({ payload, idempotencyKey: attemptRef.current.key });
           }}

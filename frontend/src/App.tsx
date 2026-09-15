@@ -6,7 +6,7 @@ import { OrderListPage } from './features/orders/OrderListPage';
 
 /**
  * 根组件。当前用轻量的状态切换页面；
- * 引入路由后可替换为 /orders、/exports、/import-jobs 三个路由（见 fe-td.md 3）。
+ * 引入路由后可替换为 /orders、/exports、/import-jobs 三个路由。
  */
 export default function App() {
   const [page, setPage] = useState<PageKey>('orders');

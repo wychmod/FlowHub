@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * POI XSSF SAX 流式读 Excel（docs/order-import-design.md §5.2/B5 核心新增）。
+ * POI XSSF SAX 流式读 Excel。
  * <p>
  * 用 {@link XSSFSheetXMLHandler} 走 event 模型逐单元格回调，不实例化 Workbook/零散行对象，
  * 内存恒定（仅共享字符串表 + 当前一行数组），10 万行可在受理期安全轻扫、执行期安全流式读。

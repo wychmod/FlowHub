@@ -25,14 +25,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * 导出 SSE 服务：进程内连接表 + 尽力广播，事实源是 MySQL。
  * <p>
  * 发送前重读 Job（不信任事件携带的状态）；事件 id = jobId:version 供前端版本栅栏拒绝迟到旧事件；
- * 单个连接发送失败只移除该连接，不影响其他连接与任务执行。端点契约见 docs/export-sse-design.md 3.1。
+ * 单个连接发送失败只移除该连接，不影响其他连接与任务执行。
  */
 @Service
 public class ExportSseService {
 
     private static final Logger log = LoggerFactory.getLogger(ExportSseService.class);
 
-    /** 事件名（契约见 docs/export-sse-design.md 3.2，对齐 be-td.md 4.10 的 4 类事件）。 */
+    /** 事件名（4 类事件）。 */
     public static final String EVENT_JOB_PROGRESS = "job.progress";
     public static final String EVENT_JOB_SUCCEEDED = "job.succeeded";
     public static final String EVENT_JOB_FAILED = "job.failed";

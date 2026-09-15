@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe('parseBlobError', () => {
-  // 契约（fe-td.md 7.2）：parseBlobError 返回 ApiError，由调用方 throw
+  // 契约：parseBlobError 返回 ApiError，由调用方 throw
   it('失败体为 JSON 错误 Envelope 时返回 ApiError（保留 code/trace_id/status）', async () => {
     const response = stubBlobResponse(
       410,

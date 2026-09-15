@@ -1,9 +1,9 @@
 /**
- * HTTP 基础封装（fe-td.md 4）：JSON 请求防腐层。
+ * HTTP 基础封装：JSON 请求防腐层。
  * 页面只消费业务数据与 ApiError，请求头、Envelope 解包、错误转换与 trace_id 保留全部收敛在本层。
  */
 
-/** 统一响应 Envelope，见 be-td.md 4.2。 */
+/** 统一响应 Envelope。 */
 export interface ApiEnvelope<T> {
   code: string;
   message: string | null;
@@ -16,7 +16,7 @@ export class ApiError extends Error {
   readonly code?: string;
   readonly traceId?: string;
   readonly status: number;
-  /** 字段级校验错误（VALIDATION_ERROR 时 Envelope data 携带 field → 文案映射，契约占位见 fe-td.md 8）。 */
+  /** 字段级校验错误（VALIDATION_ERROR 时 Envelope data 携带 field → 文案映射，）。 */
   readonly fieldErrors?: Readonly<Record<string, string>>;
 
   constructor(

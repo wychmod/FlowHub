@@ -16,7 +16,7 @@ function stubFetch(body: unknown, status = 200): ReturnType<typeof vi.fn> {
   return mock;
 }
 
-/** 构造一个符合 be-td.md 4.3 响应格式的分页 Envelope。 */
+/** 构造一个符合分页响应格式的 Envelope。 */
 function successEnvelope(data: OrderPage) {
   return { code: 'SUCCESS', message: null, data, trace_id: 't-1' };
 }

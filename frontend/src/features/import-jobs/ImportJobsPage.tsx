@@ -35,7 +35,7 @@ function progressStatus(status: ImportJobStatus): 'success' | 'exception' | 'act
 }
 
 /**
- * 导入任务页（docs/import-page-fe/plan.md）：
+ * 导入任务页：
  * SSE 实时进度（useImportEvents）→ 乐观更新缓存 → 列表展示；PARTIAL 下载错误报告、FAILED 重试。
  * 三条件轮询降级同导出：SSE 非 sse 模式 + 有进行中任务时按可见性 3s/15s，否则关闭。
  */

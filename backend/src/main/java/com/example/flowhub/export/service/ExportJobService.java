@@ -97,7 +97,7 @@ public class ExportJobService {
         this.retentionHours = retentionHours;
     }
 
-    /** 查询导出任务分页列表（be-td.md 4.6）：可选 status 过滤，派生 progress_percent/downloadable，按创建时间倒序。 */
+    /** 查询导出任务分页列表：可选 status 过滤，派生 progress_percent/downloadable，按创建时间倒序。 */
     public ExportJobPageResp listJobs(int page, int pageSize, String status) {
         String statusFilter = normalizeStatusFilter(status);
         List<ExportJobItemVO> items = exportJobMapper.findPage(pageSize, (page - 1) * pageSize, statusFilter).stream()
@@ -106,7 +106,7 @@ public class ExportJobService {
         return new ExportJobPageResp(items, exportJobMapper.countAll(statusFilter), page, pageSize);
     }
 
-    /** 列表接口允许的 status 过滤值白名单（be-td.md 4.6 契约）。 */
+    /** 列表接口允许的 status 过滤值白名单。 */
     private static final Set<String> LIST_FILTER_STATUSES =
             Set.of("PENDING", "RUNNING", "SUCCEEDED", "FAILED", "EXPIRED");
 
@@ -454,7 +454,7 @@ public class ExportJobService {
         }
     }
 
-    /** 持久化实体转 202 受理响应（job_id/job_no/status/total_rows，契约见 be-td.md 4.5）。 */
+    /** 持久化实体转 202 受理响应（job_id/job_no/status/total_rows）。 */
     private static ExportJobAcceptedVO toAcceptedVO(ExportJobEntity job) {
         return new ExportJobAcceptedVO(job.id(), job.jobNo(), job.status(), job.filterCount());
     }

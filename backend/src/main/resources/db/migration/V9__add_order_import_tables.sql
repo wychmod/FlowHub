@@ -1,6 +1,6 @@
 -- V9__add_order_import_tables.sql
 -- 订单 Excel 导入：新增 import_jobs（导入任务）与 import_job_attempts（执行尝试）两张表。
--- 依据 docs/order-import-design.md §3 的 DDL 落地；状态机含 PARTIAL（部分成功）三终态语义。
+-- DDL 落地；状态机含 PARTIAL（部分成功）三终态语义。
 --
 -- 关键设计点：
 -- 1. import_jobs 不建幂等键/request_hash 列（创建接口无幂等键，重复上传 = 两个独立任务，

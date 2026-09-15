@@ -1,4 +1,4 @@
-/** 已选订单数量上限（PRD 10.1：勾选 ID 上限 1000 个）。 */
+/** 已选订单数量上限（勾选 ID 上限 1000 个）。 */
 export const MAX_SELECTED_ORDERS = 1000;
 
 /**

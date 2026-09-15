@@ -4,7 +4,7 @@ import com.example.flowhub.common.web.error.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 /**
- * 导入模块业务错误码（docs/order-import-design.md §5）。
+ * 导入模块业务错误码。
  * <p>
  * DTO 结构错误统一走 {@link com.example.flowhub.common.web.error.CommonErrorCode#VALIDATION_ERROR}，
  * 不与本枚举混用；结构级校验失败也归本枚举（既然与重新创建任务强相关）。

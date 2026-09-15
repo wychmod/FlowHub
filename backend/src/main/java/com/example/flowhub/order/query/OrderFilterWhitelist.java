@@ -3,7 +3,7 @@ package com.example.flowhub.order.query;
 import java.util.List;
 
 /**
- * 订单筛选枚举白名单（订单查询与导出快照共用，取值定义以 docs/order-query-design.md 为准）。
+ * 订单筛选枚举白名单（订单查询与导出快照共用）。
  */
 public final class OrderFilterWhitelist {
 

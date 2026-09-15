@@ -3,7 +3,7 @@ package com.example.flowhub.export.vo;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 创建导出任务成功的输出（HTTP 202 的 data，契约见 be-td.md 4.5）。
+ * 创建导出任务成功的输出（HTTP 202 的 data）。
  */
 public record ExportJobAcceptedVO(
         @JsonProperty("job_id")

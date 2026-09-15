@@ -33,7 +33,7 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
-/** 全局布局壳层（fe-td.md 3）：深色 Sider（品牌区 + 导航）+ 白色顶栏（动态页题），不放业务逻辑。 */
+/** 全局布局壳层：深色 Sider（品牌区 + 导航）+ 白色顶栏（动态页题），不放业务逻辑。 */
 export function AppLayout({ selectedKey, onSelect, children }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { token } = theme.useToken();

@@ -9,7 +9,7 @@ import {
 import type { ApiError } from '../../../api/http';
 import { buildFilterSelection, type SubmittedFilter, type SubmittedSort } from '../filters';
 
-/** 导出模式（be-td.md 4.5）：勾选导出 / 筛选导出。 */
+/** 导出模式：勾选导出 / 筛选导出。 */
 export type ExportMode = 'SELECTED_IDS' | 'FILTER';
 
 interface ExportModalProps {
@@ -36,7 +36,7 @@ interface ExportFormValues {
   excludeSelected?: boolean;
 }
 
-/** 默认勾选列（PRD 7.3.2，共 6 列）。 */
+/** 默认勾选列（共 6 列）。 */
 const DEFAULT_COLUMNS: ExportColumnKey[] = EXPORT_COLUMN_OPTIONS.filter(
   (option) => option.defaultSelected,
 ).map((option) => option.key);

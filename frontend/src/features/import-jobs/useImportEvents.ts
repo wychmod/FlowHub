@@ -24,7 +24,7 @@ function isImportJobEvent(value: unknown): value is ImportJobEvent {
 }
 
 /**
- * 消费导入任务 SSE 事件流（docs/order-import-design.md §5.6 / docs/import-page-fe/plan.md）：
+ * 消费导入任务 SSE 事件流：
  * 逐段复刻 useExportEvents，仅三处差异——queryKey ['importJobs']、事件名 import.*（含 import.partial）、
  * payload ImportJobEvent（乐观更新额外覆盖 succeeded_rows/skipped_rows/error_report_available）。
  *

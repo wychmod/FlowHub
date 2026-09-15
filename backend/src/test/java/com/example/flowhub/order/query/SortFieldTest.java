@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 排序白名单枚举解析单测：字段/方向的大小写不敏感解析、白名单外返回 null、
- * 列名映射与默认方向（契约见 docs/order-query-design.md 第三节）。
+ * 列名映射与默认方向。
  */
 class SortFieldTest {
 

@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * 错误报告 xlsx 生成（docs/order-import-design.md §5.4/B11）：行号 / 订单号 / 错误列 / 错误原因。
+ * 错误报告 xlsx 生成：行号 / 订单号 / 错误列 / 错误原因。
  * <p>
  * 用 SXSSF 流式写（错误条目最多 5000 行，内存恒定）；错误报告是任务产物，直接写入受控
  * importRoot 最终位置，登记由 markPartial 负责、登记失败由调用方补偿删除。

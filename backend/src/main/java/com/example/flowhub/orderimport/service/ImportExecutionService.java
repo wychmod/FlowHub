@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 导入执行服务（docs/order-import-design.md §6.2/B9-B11）：消费端抢占成功后调用，
+ * 导入执行服务：消费端抢占成功后调用，
  * SAX 流式读 → 行级校验 → 文件内查重 → 冲突预查 → 批量入库 → 进度推进 → 终态收敛。
  * <p>
  * 业务失败终态收敛为可查询事实；有效行照常导入、错误行跳过并入错误报告（PARTIAL 部分成功语义）。

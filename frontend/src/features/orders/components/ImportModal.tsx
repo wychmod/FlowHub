@@ -27,7 +27,7 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * 导入订单弹窗（docs/import-page-fe/plan.md · 上传入口）：
+ * 导入订单弹窗（上传入口）：
  * 模板下载 + Upload.Dragger（本地预检 .xlsx/≤10MB）+ 手动「开始导入」受理。
  * 受理成功展示识别行数并提供跳转；失败弹窗不关闭、可重传（错误含 trace_id）。
  */

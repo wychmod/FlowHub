@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 创建导出任务接口契约验证：统一 Envelope、202 受理、field_errors、业务错误码、幂等语义
- * 与 Job/Outbox 同事务写入（契约见 docs/export-http-boundary-plan.md 第 5-10 节）。
+ * 与 Job/Outbox 同事务写入。
  * <p>链路走真实 MyBatis + H2（TestOrderDataSeeder 预置 57 行确定性订单），
  * PAID 为 n=15..44 共 30 行，可断言精确命中数。
  */

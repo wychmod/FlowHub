@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 导出任务列表接口分页契约：默认值兜底、page/page_size 越界校验与 status 过滤（契约见 be-td.md 4.6）。
+ * 导出任务列表接口分页契约：默认值兜底、page/page_size 越界校验与 status 过滤。
  */
 @SpringBootTest
 @AutoConfigureMockMvc

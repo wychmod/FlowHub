@@ -1,7 +1,7 @@
 /**
- * 订单导入 API 防腐层（docs/import-page-fe/plan.md）。
+ * 订单导入 API 防腐层。
  * 页面只消费业务数据与 ApiError；Envelope 解包、multipart 上传、下载分流统一收敛在本层。
- * 契约事实源：后端 docs/order-import-design.md §5（/api/v1/import-jobs 六端点）。
+ * 契约事实源：后端 /api/v1/import-jobs 六端点。
  */
 import { ApiError, apiBaseUrl, asEnvelope, envelopeToError, requestJson } from './http';
 import { filenameFromDisposition, parseBlobError, saveBlob } from './download';

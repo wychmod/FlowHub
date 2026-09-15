@@ -63,7 +63,7 @@ logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{trace_id:-}]"
 
-# 后续迭代按 be-td.md 补充 Redis/导出目录等配置（RabbitMQ 与 Outbox 分发参数见上；
+# 后续迭代补充 Redis/导出目录等配置（RabbitMQ 与 Outbox 分发参数见上；
 # export.outbox.dispatch-delay-ms / export.outbox.confirm-timeout-ms 走 @Value 默认值 5000）。
 # 建表脚本放置在 src/main/resources/db/migration/V x__xxx.sql，由 Flyway 启动时自动执行。
 mybatis:

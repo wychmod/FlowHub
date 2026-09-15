@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * SSE 事件 payload 契约单测（docs/export-sse-design.md 3.2）：99% 封顶、SUCCEEDED 才 100、
+ * SSE 事件 payload 契约单测：99% 封顶、SUCCEEDED 才 100、
  * 进度事件省略 error 字段（NON_NULL）、失败终态显式携带错误信息。
  */
 class ExportJobEventPayloadTest {

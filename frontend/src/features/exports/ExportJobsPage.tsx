@@ -43,7 +43,7 @@ function formatBytes(bytes: number | null | undefined): string {
 }
 
 /**
- * 导出任务页（docs/export-sse-design.md 交付）：
+ * 导出任务页：
  * SSE 实时进度（useExportEvents）→ 乐观更新缓存 → 列表展示；下载/重试操作列。
  * 三条件轮询：SSE 非 sse 模式 + 有进行中任务时按页面可见性 3s/15s，否则关闭。
  */

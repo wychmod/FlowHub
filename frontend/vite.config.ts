@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-// 端口约定：后端 8080，前端 5174（见 docs/fe-td.md 与项目约定）
+// 端口约定：后端 8080，前端 5174
 export default defineConfig({
   plugins: [react()],
   server: {

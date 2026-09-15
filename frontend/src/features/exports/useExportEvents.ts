@@ -24,7 +24,7 @@ function isExportJobEvent(value: unknown): value is ExportJobEvent {
 }
 
 /**
- * 消费导出任务 SSE 事件流（docs/export-sse-design.md 5.2/5.3）：
+ * 消费导出任务 SSE 事件流：
  * - 连接状态机 connecting → sse →（连续 3 次失败）polling，offline 独立
  * - job_version 版本栅栏：旧事件（≤ 已知最大版本）丢弃，乱序不倒退
  * - 乐观局部更新：就地更新 react-query 缓存行，只覆盖事件携带的字段

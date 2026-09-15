@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 
 /**
- * SSE 任务事件 payload（契约见 docs/export-sse-design.md 3.2 / be-td.md 4.10，字段统一 snake_case）。
+ * SSE 任务事件 payload（字段统一 snake_case）。
  * <p>
  * 字段存在性即协议：进度/成功事件不含 error 字段（NON_NULL 省略，前端保留缓存值），
  * 失败终态显式携带 error_code/error_message。

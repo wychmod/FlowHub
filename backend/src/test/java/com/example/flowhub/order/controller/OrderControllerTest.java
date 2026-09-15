@@ -16,8 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 订单接口契约验证：统一 Envelope、trace_id、分页、条件筛选、排序回显与参数校验
- * （契约见 docs/order-query-design.md 第二节、第六节）。
+ * 订单接口契约验证：统一 Envelope、trace_id、分页、条件筛选、排序回显与参数校验。
  * <p>链路走真实 MyBatis + H2（TestOrderDataSeeder 预置 57 行确定性数据，口径对齐 seed 脚本），
  * 因此可断言精确的命中数与首行值。
  */

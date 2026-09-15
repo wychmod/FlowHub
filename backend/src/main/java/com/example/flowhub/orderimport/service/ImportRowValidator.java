@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 行级校验引擎（docs/order-import-design.md §6.2/B9）：逐列的格式/枚举/必填/长度/金额/时间校验。
+ * 行级校验引擎：逐列的格式/枚举/必填/长度/金额/时间校验。
  * <p>
  * 不持跨行状态（文件内查重由执行体持有），每次调用产出一个 {@link Outcome}——通过则带可入库行，
  * 否则带错误明细。枚举一律委托 {@link ParamUtils#enumFromName}（大小写不敏感），

@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.BindParam;
 /**
  * 导出任务列表查询请求（record + @BindParam 构造器绑定）。
  * <p>
- * status 过滤值取值白名单与大小写归一由 Service 层校验（be-td.md 4.6）。
+ * status 过滤值取值白名单与大小写归一由 Service 层校验。
  */
 public record ListExportJobsRequest(
         @Min(value = 1, message = "page 必须大于等于 1")

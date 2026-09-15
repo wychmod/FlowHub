@@ -1,10 +1,10 @@
 import type { Dayjs } from 'dayjs';
 import { requestJson } from '../../api/http';
 
-/** 订单状态（字符串字面量联合类型），取值对齐 be-td.md 4.3：PENDING/PAID/SHIPPED/COMPLETED/CANCELED。 */
+/** 订单状态（字符串字面量联合类型）：PENDING/PAID/SHIPPED/COMPLETED/CANCELED。 */
 export type OrderStatus = 'PENDING' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELED';
 
-/** 销售渠道，be-td.md 4.3：WEB/APP/STORE/PARTNER。 */
+/** 销售渠道：WEB/APP/STORE/PARTNER。 */
 export type SalesChannel = 'WEB' | 'APP' | 'STORE' | 'PARTNER';
 
 /** 币种，对齐 seed 数据取值：CNY/USD/EUR/HKD。 */
@@ -16,7 +16,7 @@ export type OrderSortField = 'created_at' | 'total_amount' | 'order_no' | 'id';
 /** 排序方向。 */
 export type OrderSortDirection = 'asc' | 'desc';
 
-/** 订单列表行，字段与后端 OrderItemVO（snake_case）一致，见 be-td.md 4.3；可空列为 string | null。 */
+/** 订单列表行，字段与后端 OrderItemVO（snake_case）一致；可空列为 string | null。 */
 export interface OrderItem {
   id: number;
   order_no: string;
@@ -49,7 +49,7 @@ export interface OrderSort {
 }
 
 /**
- * 订单查询参数，对齐后端 OrderRequest 的完整查询契约（docs/order-query-design.md 第二节）。
+ * 订单查询参数，对齐后端 OrderRequest 的完整查询契约。
  * 所有条件可选，AND 语义；多值筛选以数组表达，序列化时逗号拼接。
  */
 export interface OrderQuery {

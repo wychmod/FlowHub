@@ -12,7 +12,7 @@ export function enumLabel<V extends string>(options: readonly EnumOption<V>[], v
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
-/** 订单状态选项（PRD 9.1）。 */
+/** 订单状态选项。 */
 export const ORDER_STATUS_OPTIONS: EnumOption<OrderStatus>[] = [
   { value: 'PENDING', label: '待支付' },
   { value: 'PAID', label: '已支付' },
@@ -21,7 +21,7 @@ export const ORDER_STATUS_OPTIONS: EnumOption<OrderStatus>[] = [
   { value: 'CANCELED', label: '已取消' },
 ];
 
-/** 销售渠道选项（PRD 9.2）。 */
+/** 销售渠道选项。 */
 export const SALES_CHANNEL_OPTIONS: EnumOption<SalesChannel>[] = [
   { value: 'WEB', label: 'Web 商城' },
   { value: 'APP', label: '移动 App' },

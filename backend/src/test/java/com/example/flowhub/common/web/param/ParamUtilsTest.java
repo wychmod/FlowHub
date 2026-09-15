@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@link ParamUtils} 单元测试：覆盖空值契约（null / 空串 / 纯空白 / 空 token /
- * 重复 token）与枚举、数值、时间、手机号、多值枚举解析的正常、异常路径（见 docs/order-query-design.md 第七节）。
+ * 重复 token）与枚举、数值、时间、手机号、多值枚举解析的正常、异常路径。
  */
 class ParamUtilsTest {
 

@@ -1,7 +1,7 @@
 import type { CreateExportJobPayload } from '../../api/exportApi';
 
 /**
- * 导出创建幂等键生命周期（PRD 7.4.2）：
+ * 导出创建幂等键生命周期：
  * 点击「确认创建」时生成 → 同一提交意图（同 payload）重试复用 → 创建成功/取消后失效，
  * 修改表单（payload 变化）后重新提交生成新 Key。
  * <p>

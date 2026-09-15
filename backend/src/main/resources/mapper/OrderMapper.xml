@@ -72,7 +72,7 @@
     <!--
       分页查询：列显式别名为驼峰，配合 arg-name-based-constructor-auto-mapping
       按构造器参数名装配 Order record（record 无 setter，走构造器映射）。
-      排序契约：主排序 + id tie-breaker，方向与主排序一致（设计文档第三节第 3 点）。
+      排序契约：主排序 + id tie-breaker，方向与主排序一致。
     -->
     <select id="selectPage" resultType="com.example.flowhub.order.entity.Order">
         SELECT

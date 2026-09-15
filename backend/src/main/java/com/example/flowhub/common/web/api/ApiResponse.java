@@ -4,7 +4,7 @@ import com.example.flowhub.common.web.trace.TraceIdSupport;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 统一响应 Envelope，格式见 be-td.md 4.2。
+ * 统一响应 Envelope。
  *
  * <pre>{@code
  * {

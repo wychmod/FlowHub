@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 /**
- * 订单分页响应，见 be-td.md 4.3 与 docs/order-query-design.md 第六节。
+ * 订单分页响应。
  * <p>
  * {@code sort_by}/{@code sort_order} 回显实际生效的排序（默认值展开后的结果，
  * 如未传时回显 {@code "created_at"}/{@code "desc"}），作为确定契约供前端对齐当前排序状态。

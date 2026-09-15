@@ -28,7 +28,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 
 /**
- * 订单导入接口（docs/order-import-design.md §4 的 6 个端点：模板下载/上传受理/列表/错误报告下载/人工重试/SSE）。
+ * 订单导入接口（6 个端点：模板下载/上传受理/列表/错误报告下载/人工重试/SSE）。
  */
 @RestController
 @RequestMapping("/import-jobs")

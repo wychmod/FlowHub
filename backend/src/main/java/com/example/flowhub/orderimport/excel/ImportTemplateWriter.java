@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * 导入模板生成（docs/order-import-design.md §5.1/B3）：纯表头 + 下拉约束 + 金额列预设格式 + 填写说明。
+ * 导入模板生成：纯表头 + 下拉约束 + 金额列预设格式 + 填写说明。
  * <p>
  * 模板为手持小文件，直接压到内存 byte[] 返回，不落 importRoot（避免污染受控目录、无需清理）。
  * 「订单数据」Sheet 只有表头一行（不放示例行——示例会被当作数据行导入）；表头 9 列名称/顺序

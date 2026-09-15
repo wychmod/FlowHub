@@ -71,19 +71,19 @@ public class ExportJobController {
         return key;
     }
 
-    /** 查询导出任务分页列表（可选 status 过滤，契约见 be-td.md 4.6）。 */
+    /** 查询导出任务分页列表（可选 status 过滤）。 */
     @GetMapping
     public ExportJobPageResp listJobs(@Valid @ModelAttribute ListExportJobsRequest request) {
         return exportJobService.listJobs(request.page(), request.pageSize(), request.status());
     }
 
-    /** SSE 事件订阅（进度/终态广播 + 心跳，契约见 be-td.md 4.10）：断线重连与轮询降级由前端负责。 */
+    /** SSE 事件订阅（进度/终态广播 + 心跳）：断线重连与轮询降级由前端负责。 */
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events() {
         return exportSseService.connect();
     }
 
-    /** 人工重试失败任务（be-td.md 4.8 契约：FAILED → PENDING + 新 Outbox，受理后仍走条件抢占）。 */
+    /** 人工重试失败任务（FAILED → PENDING + 新 Outbox，受理后仍走条件抢占）。 */
     @PostMapping("/{job_id}/retry")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ExportJobAcceptedVO retry(@PathVariable("job_id") long jobId) {

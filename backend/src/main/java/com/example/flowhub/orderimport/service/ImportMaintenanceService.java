@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 导入维护服务（docs/order-import-design.md §7.6/B16）：启动恢复租约失效的 RUNNING，定时清理过期文件与孤儿对账。
+ * 导入维护服务：启动恢复租约失效的 RUNNING，定时清理过期文件与孤儿对账。
  * <p>
  * 与导出一致：调度只提供执行时机，可靠性来自条件更新与「删除成功才推进状态」的收敛纪律；全部动作幂等。
  */

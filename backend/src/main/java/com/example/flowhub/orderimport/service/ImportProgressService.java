@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 导入进度服务（docs/order-import-design.md §7.4/B12）：MySQL 事实源推进 → 发布变化事件 → 尽力写 Redis 投影。
+ * 导入进度服务：MySQL 事实源推进 → 发布变化事件 → 尽力写 Redis 投影。
  * <p>
  * 推进成功证据是数据库条件更新结果（0 行 fail-fast）；Redis 投影可失败仅降级日志，事实源始终是 MySQL。
  */

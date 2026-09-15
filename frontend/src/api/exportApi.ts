@@ -12,7 +12,7 @@ import type {
 export type ExportJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED';
 
 /**
- * 导出任务列表行（be-td.md 4.6），字段与 SSE 事件 payload 对齐，
+ * 导出任务列表行，字段与 SSE 事件 payload 对齐，
  * 使 useExportEvents 的 applyEvent 能就地更新行的可更新字段。
  */
 export interface ExportJobItem {
@@ -53,7 +53,7 @@ export interface ExportJobPage {
 }
 
 /**
- * SSE 任务事件 payload（docs/export-sse-design.md 3.2，与后端 ExportJobEventPayload 对齐）。
+ * SSE 任务事件 payload（与后端 ExportJobEventPayload 对齐）。
  * 字段存在性即协议：进度/成功事件不含 error 字段，失败终态显式携带。
  */
 export interface ExportJobEvent {
@@ -69,10 +69,10 @@ export interface ExportJobEvent {
   occurred_at: string;
 }
 
-// 以下订单枚举类型复用 features/orders/api.ts 的定义（fe-td.md 规则：跨 feature 领域 API 放 api/ 层，
+// 以下订单枚举类型复用 features/orders/api.ts 的定义（跨 feature 领域 API 放 api/ 层，
 // 类型仍以订单模块为单一来源）。
 
-/** 导出列 key（后端 9 列白名单，PRD 7.3.2）。 */
+/** 导出列 key（后端 9 列白名单）。 */
 export type ExportColumnKey =
   | 'order_no'
   | 'order_status'
@@ -84,7 +84,7 @@ export type ExportColumnKey =
   | 'shipping_province'
   | 'created_at';
 
-/** 导出列白名单：顺序即默认表头顺序，Excel 表头文案与默认勾选属于契约的一部分（PRD 7.3.2）。 */
+/** 导出列白名单：顺序即默认表头顺序，Excel 表头文案与默认勾选属于契约的一部分。 */
 export const EXPORT_COLUMN_OPTIONS: {
   key: ExportColumnKey;
   label: string;
@@ -102,8 +102,7 @@ export const EXPORT_COLUMN_OPTIONS: {
 ];
 
 /**
- * 筛选导出快照：字段名与订单查询契约一致（order-query-design.md 第八节第 9 步口径；
- * 多值为数组、时间为本地格式字符串，排序字段恒包含）。
+ * 筛选导出快照：字段名与订单查询契约一致（多值为数组、时间为本地格式字符串，排序字段恒包含）。
  */
 export interface ExportFilterSnapshot {
   order_status?: OrderStatus[];
@@ -120,14 +119,14 @@ export interface ExportFilterSnapshot {
   sort_order?: OrderSortDirection;
 }
 
-/** 创建导出任务请求体（be-td.md 4.5，selection 两种模式的判别联合）。 */
+/** 创建导出任务请求体（selection 两种模式的判别联合）。 */
 export type CreateExportJobPayload = {
   selection:
     | { mode: 'SELECTED_IDS'; order_ids: number[] }
     | {
         mode: 'FILTER';
         filter: ExportFilterSnapshot;
-        /** 反选排除的订单 ID（be-td.md 4.5：仅 FILTER 分支有意义，最多 1000）。 */
+        /** 反选排除的订单 ID（仅 FILTER 分支有意义，最多 1000）。 */
         excluded_order_ids?: number[];
       };
   /** 导出列，至少 1 列，按白名单顺序输出。 */
@@ -160,7 +159,7 @@ export async function listExportJobs(params: { page: number; pageSize: number })
 const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 /**
- * 下载导出文件（fe-td.md 7）：成功读取文件流并触发浏览器保存；
+ * 下载导出文件：成功读取文件流并触发浏览器保存；
  * 失败响应可能是 JSON 错误包（409/410/404）或网关文本，统一交 parseBlobError 转为 ApiError。
  */
 export async function downloadExportJob(job: ExportJobItem): Promise<void> {
@@ -188,7 +187,7 @@ function fallbackDownloadName(job: ExportJobItem): string {
   return `export-${job.job_no}.xlsx`;
 }
 
-/** 创建导出任务；幂等键由调用方每次明确点击时生成（PRD 7.4.2）。 */
+/** 创建导出任务；幂等键由调用方每次明确点击时生成。 */
 export function createExportJob(
   payload: CreateExportJobPayload,
   idempotencyKey: string,

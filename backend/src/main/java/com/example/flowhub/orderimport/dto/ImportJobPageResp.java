@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
-/** 导入任务分页响应（docs/order-import-design.md §5.3）。 */
+/** 导入任务分页响应。 */
 public record ImportJobPageResp(
         List<ImportJobItemVO> items,
         long total,

@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 并发创建幂等验证（数据库唯一约束裁决）：同 Key 的两个请求同时到达时，
  * 只有一个 INSERT 能成功，败者降级——同请求复用原任务、不同请求返回 409 冲突，
- * Job 与 Outbox 均只留一条（见 export-http-boundary-plan.md 6.3 的并发兜底路径）。
+ * Job 与 Outbox 均只留一条（并发兜底路径）。
  */
 @SpringBootTest
 class ExportJobIdempotencyConcurrencyTest {

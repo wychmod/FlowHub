@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * OrderService 归一化与空值防御单测（用例清单见 docs/order-query-design.md 第七节第 8 条）：
+ * OrderService 归一化与空值防御单测：
  * 全条件为 null、空白串、空集合、区间单端、空白 sort_by/sort_order、各种非法格式。
  * <p>
  * 走真实 MyBatis + H2，由 TestOrderDataSeeder 预置 57 行确定性数据。

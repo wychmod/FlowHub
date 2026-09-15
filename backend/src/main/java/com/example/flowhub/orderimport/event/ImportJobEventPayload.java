@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 
 /**
- * SSE 导入任务事件 payload（契约见 docs/order-import-design.md §5.6，字段统一 snake_case）。
+ * SSE 导入任务事件 payload（字段统一 snake_case）。
  * <p>
  * 字段存在性即协议：进度/成功/部分事件不含 error 字段（NON_NULL 省略），失败终态显式携带
  * error_code/error_message；succeeded_rows/skipped_rows 由列表与事件共同呈现，前端可乐观更新。

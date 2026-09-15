@@ -21,7 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 导入 SSE 服务（docs/order-import-design.md §5.6/B12）：进程内连接表 + 尽力广播，事实源是 MySQL。
+ * 导入 SSE 服务：进程内连接表 + 尽力广播，事实源是 MySQL。
  * <p>
  * 发送前重读 Job（不信任事件携带的状态）；事件 id = jobId:version 供前端版本栅栏拒绝迟到旧事件；
  * 单个连接发送失败只移除该连接，不影响其他连接与任务执行。

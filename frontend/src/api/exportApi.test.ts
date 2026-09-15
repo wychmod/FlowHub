@@ -22,7 +22,7 @@ function stubFetch(body: unknown, status = 200): ReturnType<typeof vi.fn> {
   return mock;
 }
 
-/** 构造一个符合 be-td.md 4.5 成功响应（HTTP 202 风格）的 Envelope。 */
+/** 构造一个 HTTP 202 风格成功响应的 Envelope。 */
 function successEnvelope(data: unknown) {
   return { code: 'SUCCESS', message: null, data, trace_id: 't-1' };
 }
@@ -292,7 +292,7 @@ describe('downloadExportJob', () => {
 });
 
 describe('EXPORT_COLUMN_OPTIONS', () => {
-  it('共 9 列，默认勾选 6 列且顺序与 PRD 7.3.2 白名单一致', () => {
+  it('共 9 列，默认勾选 6 列且顺序与导出列白名单一致', () => {
     expect(EXPORT_COLUMN_OPTIONS).toHaveLength(9);
     expect(EXPORT_COLUMN_OPTIONS.filter((option) => option.defaultSelected).map((option) => option.key)).toEqual([
       'order_no',
