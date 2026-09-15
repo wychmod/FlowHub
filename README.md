@@ -355,6 +355,7 @@ cd frontend && npm run build       # 类型检查 + 生产构建
 | [09 · 订单 Excel 导入](doc/09-订单Excel导入.md) | 三层校验 / SAX 流读 / PARTIAL 部分成功 / 错误报告 |
 | [10 · 前端交互层](doc/10-前端交互层.md) | API 防腐层 / 幂等键生命周期 / useExportEvents 状态机 |
 | [11 · 测试与质量守门](doc/11-测试与质量守门.md) | H2 集成矩阵 / 前端单测 / Playwright 全链路 E2E |
+| [12 · 面试指导](doc/12-面试指导.md) | 电梯稿 / STAR 条目 / 高频追问应答 / 诚实边界讲法 |
 
 ---
 
