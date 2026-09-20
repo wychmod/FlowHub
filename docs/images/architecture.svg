@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 980" width="1240" height="980" font-family="Segoe UI, Microsoft YaHei, PingFang SC, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1240" height="980" fill="#0d1117"/>
+
+  <text x="40" y="46" font-size="24" font-weight="bold" fill="#e6edf3">FlowHub 系统架构图</text>
+  <text x="330" y="46" font-size="14" fill="#8b949e">企业级异步 Excel 导出 / 导入中心 · 教学演示项目</text>
+
+  <!-- ===== 前端层 ===== -->
+  <text x="40" y="92" font-size="13" fill="#8b949e">前端　React 18 + TypeScript + Vite :5174（antd 6 · react-query 5）</text>
+  <rect x="40" y="104" width="1160" height="96" rx="10" fill="#161b22" stroke="#30363d"/>
+  <rect x="72" y="124" width="250" height="56" rx="8" fill="#0d1117" stroke="#58a6ff"/>
+  <text x="197" y="148" font-size="14" font-weight="bold" fill="#58a6ff" text-anchor="middle">订单列表页</text>
+  <text x="197" y="168" font-size="11" fill="#8b949e" text-anchor="middle">筛选 / 排序 / 跨页勾选 / 导入导出入口</text>
+  <rect x="362" y="124" width="250" height="56" rx="8" fill="#0d1117" stroke="#3fb950"/>
+  <text x="487" y="148" font-size="14" font-weight="bold" fill="#3fb950" text-anchor="middle">导出任务页</text>
+  <text x="487" y="168" font-size="11" fill="#8b949e" text-anchor="middle">SSE 实时进度 / 下载 / 人工重试</text>
+  <rect x="652" y="124" width="250" height="56" rx="8" fill="#0d1117" stroke="#d29922"/>
+  <text x="777" y="148" font-size="14" font-weight="bold" fill="#d29922" text-anchor="middle">导入任务页</text>
+  <text x="777" y="168" font-size="11" fill="#8b949e" text-anchor="middle">SSE 进度 / 错误报告下载 / 重试</text>
+  <rect x="942" y="124" width="228" height="56" rx="8" fill="#0d1117" stroke="#30363d" stroke-dasharray="5,4"/>
+  <text x="1056" y="148" font-size="12" font-weight="bold" fill="#c9d1d9" text-anchor="middle">useExportEvents / useImportEvents</text>
+  <text x="1056" y="168" font-size="11" fill="#8b949e" text-anchor="middle">版本栅栏 + 乐观更新 + 轮询降级</text>
+
+  <!-- ===== 后端层 ===== -->
+  <text x="40" y="250" font-size="13" fill="#8b949e">后端　Spring Boot 3.3 · Java 21 · MyBatis :8080（Maven Wrapper）</text>
+  <rect x="40" y="262" width="1160" height="300" rx="10" fill="#161b22" stroke="#30363d"/>
+
+  <rect x="64" y="286" width="200" height="252" rx="8" fill="#0d1117" stroke="#8b949e"/>
+  <text x="164" y="312" font-size="13" font-weight="bold" fill="#c9d1d9" text-anchor="middle">common/web 横切底座</text>
+  <text x="80" y="342" font-size="11" fill="#8b949e">· 统一 Envelope + 全局异常</text>
+  <text x="80" y="364" font-size="11" fill="#8b949e">· trace_id 生成与链路透传</text>
+  <text x="80" y="386" font-size="11" fill="#8b949e">· ParamUtils 入参归一化</text>
+  <text x="80" y="408" font-size="11" fill="#8b949e">· 异步线程池 + MDC 传递</text>
+  <text x="80" y="430" font-size="11" fill="#8b949e">· 上传大小防护 Filter</text>
+  <text x="80" y="452" font-size="11" fill="#8b949e">· /api/v1 版本前缀</text>
+
+  <rect x="288" y="286" width="200" height="120" rx="8" fill="#0d1117" stroke="#58a6ff"/>
+  <text x="388" y="312" font-size="13" font-weight="bold" fill="#58a6ff" text-anchor="middle">order/ 订单查询</text>
+  <text x="304" y="336" font-size="11" fill="#8b949e">分页 + 条件筛选 + 排序白名单</text>
+  <text x="304" y="356" font-size="11" fill="#8b949e">OrderMapper.xml 动态 SQL</text>
+  <text x="304" y="376" font-size="11" fill="#8b949e">GET /api/v1/orders</text>
+
+  <rect x="512" y="286" width="320" height="252" rx="8" fill="#0d1117" stroke="#3fb950"/>
+  <text x="672" y="312" font-size="13" font-weight="bold" fill="#3fb950" text-anchor="middle">export/ 导出任务模块</text>
+  <text x="528" y="336" font-size="11" fill="#c9d1d9">创建：DTO 校验 → Command 规范化 → 幂等</text>
+  <text x="544" y="354" font-size="11" fill="#8b949e">同事务写 export_jobs + outbox_events（202）</text>
+  <text x="528" y="380" font-size="11" fill="#c9d1d9">mq/：Outbox 分发 + Publisher Confirm 闭环</text>
+  <text x="528" y="404" font-size="11" fill="#c9d1d9">Consumer：手动 Ack + CAS 抢占 + Attempt 审计</text>
+  <text x="528" y="428" font-size="11" fill="#c9d1d9">执行体：任务快照 + Keyset 批查 + SXSSF 流式 Excel</text>
+  <text x="528" y="452" font-size="11" fill="#c9d1d9">进度：MySQL 条件推进 + Redis 投影 + SSE 广播</text>
+  <text x="528" y="476" font-size="11" fill="#c9d1d9">文件：受控根 + 原子发布 + 安全下载</text>
+  <text x="528" y="500" font-size="11" fill="#c9d1d9">维护：启动恢复 + 过期清理 + 孤儿对账</text>
+
+  <rect x="856" y="286" width="320" height="252" rx="8" fill="#0d1117" stroke="#d29922"/>
+  <text x="1016" y="312" font-size="13" font-weight="bold" fill="#d29922" text-anchor="middle">orderimport/ 订单导入模块</text>
+  <text x="872" y="336" font-size="11" fill="#c9d1d9">受理：文件/结构/行级三层校验（≤10MB）</text>
+  <text x="872" y="360" font-size="11" fill="#c9d1d9">SAX 流式读取 + 冲突预查 + 批量入库</text>
+  <text x="872" y="384" font-size="11" fill="#c9d1d9">独立拓扑 import.job.* 复刻投递/消费链路</text>
+  <text x="872" y="408" font-size="11" fill="#c9d1d9">错误报告 xlsx + PARTIAL 部分成功语义</text>
+  <text x="872" y="432" font-size="11" fill="#c9d1d9">导入格式与导出 9 列互逆</text>
+  <text x="872" y="460" font-size="11" fill="#8b949e">6 端点：template / POST / GET / events</text>
+  <text x="888" y="478" font-size="11" fill="#8b949e">/ error-report / retry</text>
+
+  <!-- ===== 基础设施层 ===== -->
+  <text x="40" y="684" font-size="13" fill="#8b949e">基础设施（RabbitMQ / Redis 为可选前置，未启动时应用照常运行、恢复后自动补齐）</text>
+
+  <rect x="64" y="700" width="260" height="150" rx="8" fill="#161b22" stroke="#db61a2"/>
+  <text x="194" y="726" font-size="13" font-weight="bold" fill="#db61a2" text-anchor="middle">MySQL :3306（Flyway V1–V9）</text>
+  <text x="80" y="752" font-size="11" fill="#8b949e">orders · order_no 唯一约束</text>
+  <text x="80" y="772" font-size="11" fill="#8b949e">export_jobs / export_job_attempts</text>
+  <text x="80" y="792" font-size="11" fill="#8b949e">import_jobs / import_job_attempts</text>
+  <text x="80" y="812" font-size="11" fill="#8b949e">outbox_events（published_at 判重）</text>
+  <text x="80" y="832" font-size="11" fill="#8b949e">事务 = 业务表 + Outbox 同事务</text>
+
+  <rect x="376" y="700" width="260" height="150" rx="8" fill="#161b22" stroke="#f778ba"/>
+  <text x="506" y="726" font-size="13" font-weight="bold" fill="#f778ba" text-anchor="middle">RabbitMQ :5672（可选）</text>
+  <text x="392" y="752" font-size="11" fill="#8b949e">export.job.exchange / queue + DLQ</text>
+  <text x="392" y="772" font-size="11" fill="#8b949e">import.job.* 独立拓扑</text>
+  <text x="392" y="792" font-size="11" fill="#8b949e">Publisher Confirm + 手动 Ack</text>
+  <text x="392" y="812" font-size="11" fill="#8b949e">至少一次投递 → CAS 抢占收敛为</text>
+  <text x="408" y="830" font-size="11" fill="#8b949e">最多一次有效执行</text>
+
+  <rect x="688" y="700" width="220" height="150" rx="8" fill="#161b22" stroke="#79c0ff"/>
+  <text x="798" y="726" font-size="13" font-weight="bold" fill="#79c0ff" text-anchor="middle">Redis :6379（可选）</text>
+  <text x="704" y="752" font-size="11" fill="#8b949e">进度投影 Hash</text>
+  <text x="720" y="770" font-size="11" fill="#8b949e">export:progress:&lt;jobId&gt;</text>
+  <text x="720" y="788" font-size="11" fill="#8b949e">import:progress:&lt;jobId&gt;</text>
+  <text x="704" y="810" font-size="11" fill="#8b949e">TTL 48h · 失败降级不阻塞</text>
+  <text x="704" y="830" font-size="11" fill="#8b949e">RUNNING 封顶 99%</text>
+
+  <rect x="960" y="700" width="240" height="150" rx="8" fill="#161b22" stroke="#56d4bc"/>
+  <text x="1080" y="726" font-size="13" font-weight="bold" fill="#56d4bc" text-anchor="middle">本地文件系统（受控根）</text>
+  <text x="976" y="752" font-size="11" fill="#8b949e">export-files/&lt;日期&gt;/&lt;jobId&gt;/</text>
+  <text x="976" y="772" font-size="11" fill="#8b949e">import-files/&lt;日期&gt;/&lt;jobNo&gt;/</text>
+  <text x="976" y="792" font-size="11" fill="#8b949e">.tmp → ATOMIC_MOVE 原子发布</text>
+  <text x="976" y="812" font-size="11" fill="#8b949e">双层路径防腐 · 保留 24h</text>
+  <text x="976" y="832" font-size="11" fill="#8b949e">过期清理 + 孤儿三维对账</text>
+
+  <!-- ===== 箭头 ===== -->
+  <line x1="620" y1="200" x2="620" y2="256" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="634" y="234" font-size="11" fill="#8b949e">HTTP /api/v1（Vite 代理）</text>
+  <line x1="1140" y1="262" x2="1140" y2="202" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arrowGreen)"/>
+  <text x="1050" y="234" font-size="11" fill="#3fb950">SSE 进度事件（AFTER_COMMIT）</text>
+
+  <line x1="380" y1="408" x2="252" y2="696" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="214" y="590" font-size="11" fill="#8b949e">MyBatis 查询</text>
+  <line x1="556" y1="538" x2="314" y2="696" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="340" y="584" font-size="11" fill="#8b949e">事务读写 / 条件推进</text>
+  <line x1="450" y1="696" x2="544" y2="538" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arrowGreen)"/>
+  <text x="520" y="606" font-size="11" fill="#3fb950">消费·手动 Ack</text>
+  <line x1="660" y1="538" x2="560" y2="696" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="640" y="610" font-size="11" fill="#8b949e">Outbox 投递</text>
+  <line x1="1080" y1="538" x2="640" y2="696" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="948" y="594" font-size="11" fill="#8b949e">Outbox 投递</text>
+  <line x1="770" y1="538" x2="800" y2="696" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="640" y="650" font-size="11" fill="#8b949e">投影写入·失败降级</text>
+  <line x1="810" y1="538" x2="1050" y2="696" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="985" y="646" font-size="11" fill="#8b949e">Excel 原子发布</text>
+  <line x1="1120" y1="538" x2="1118" y2="696" stroke="#8b949e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="1130" y="600" font-size="11" fill="#8b949e">原件/报告</text>
+
+  <!-- ===== 图例 ===== -->
+  <line x1="64" y1="892" x2="108" y2="892" stroke="#8b949e" stroke-width="1.5"/>
+  <text x="118" y="896" font-size="12" fill="#8b949e">同步调用（HTTP / SQL / 文件）</text>
+  <line x1="360" y1="892" x2="404" y2="892" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="414" y="896" font-size="12" fill="#8b949e">异步消息 / 实时事件</text>
+  <text x="640" y="896" font-size="12" fill="#8b949e">事实源：MySQL · 投影/通道：Redis + SSE · 至少一次投递 + CAS 收敛</text>
+</svg>

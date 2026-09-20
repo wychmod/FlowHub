@@ -86,45 +86,11 @@
 
 ## 系统架构
 
-```mermaid
-flowchart LR
-    subgraph FE["前端 React + antd"]
-        UI["订单列表 / 导出任务页"]
-        HOOK["useExportEvents<br/>SSE + 版本栅栏 + 轮询降级"]
-    end
+![FlowHub 系统架构图](docs/images/architecture.svg)
 
-    subgraph APP["Spring Boot 接入层"]
-        CREATE["POST /export-jobs<br/>DTO 校验 → Command 规范化<br/>→ 幂等裁决"]
-        QUERY["GET /export-jobs · /download<br/>派生字段 · 受控文件解析"]
-        SSE["SSE 端点<br/>AFTER_COMMIT 广播"]
-    end
+（高清位图版见 [`docs/images/architecture.png`](docs/images/architecture.png)）
 
-    subgraph DATA["MySQL"]
-        JOBS[("export_jobs")]
-        OUTBOX[("outbox_events")]
-    end
-
-    DISP["Outbox 分发器<br/>定时扫描 + Publisher Confirm"]
-    MQ{{"RabbitMQ<br/>export.job.queue + DLQ"}}
-
-    subgraph WORKER["执行侧（消费驱动）"]
-        CLAIM["CAS 条件抢占<br/>+ Attempt 审计"]
-        READ["Keyset 分批读取<br/>快照重建 + 高水位"]
-        WRITE["SXSSF 流式写<br/>safeText 防注入"]
-        PUB["ATOMIC_MOVE 原子发布<br/>markSucceeded 登记"]
-    end
-
-    REDIS[("Redis<br/>进度投影")]
-
-    UI -->|"Idempotency-Key"| CREATE
-    CREATE --> JOBS
-    CREATE --> OUTBOX
-    OUTBOX --> DISP --> MQ --> CLAIM --> READ --> WRITE --> PUB
-    PUB --> JOBS
-    JOBS -->|"条件推进 + 提交后事件"| SSE --> HOOK --> UI
-    JOBS -.->|"尽力写入"| REDIS
-    UI -->|"列表校准 / 下载"| QUERY
-```
+架构分层一句话：**MySQL 是唯一事实源，Redis 与 SSE 只是可失败的投影与通道**；所有状态迁移都由**条件 UPDATE** 裁决，Outbox 保证至少一次投递，消费端 CAS 抢占把重复投递收敛为最多一次有效执行。
 
 ## 任务状态机
 
