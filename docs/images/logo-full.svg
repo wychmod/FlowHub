@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="280" viewBox="0 0 780 280" role="img" aria-label="FlowHub - 企业级异步 Excel 导出中心">
+  <defs>
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="72" y1="40" x2="440" y2="472">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="row" gradientUnits="userSpaceOnUse" x1="220" y1="222" x2="292" y2="290">
+      <stop offset="0" stop-color="#4338CA"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.28" cy="0.16" r="0.95">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="textGrad" gradientUnits="userSpaceOnUse" x1="292" y1="80" x2="700" y2="190">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+    <filter id="cellShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1E1B4B" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(25 25) scale(0.45)">
+    <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+    <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+
+    <g stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" fill="none">
+      <path d="M 66 186 C 108 186 128 218 172 232" opacity="0.6"/>
+      <path d="M 60 256 L 178 256" opacity="0.95"/>
+      <path d="M 66 326 C 108 326 128 294 172 280" opacity="0.6"/>
+    </g>
+
+    <g filter="url(#cellShadow)">
+      <rect x="196" y="196" width="120" height="120" rx="30" fill="#FFFFFF"/>
+    </g>
+    <g fill="url(#row)">
+      <rect x="220" y="224.5" width="72" height="13" rx="6.5"/>
+      <rect x="220" y="249.5" width="72" height="13" rx="6.5"/>
+      <rect x="220" y="274.5" width="72" height="13" rx="6.5"/>
+    </g>
+
+    <g stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M 326 256 L 398 256"/>
+      <path d="M 394 212 L 446 256 L 394 300"/>
+    </g>
+  </g>
+
+  <text x="292" y="146" font-family="'Segoe UI','PingFang SC','Microsoft YaHei',-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="100" font-weight="700" fill="url(#textGrad)" textLength="402" lengthAdjust="spacingAndGlyphs">FlowHub</text>
+  <text x="296" y="210" font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif" font-size="31" fill="#64748B" letter-spacing="1">企业级异步 Excel 导出中心</text>
+</svg>

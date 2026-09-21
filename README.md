@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/images/logo.svg" alt="FlowHub logo" width="140"/>
+
 # FlowHub
 
 **企业级异步 Excel 导出中心** · Enterprise-Grade Asynchronous Export & Import Center
