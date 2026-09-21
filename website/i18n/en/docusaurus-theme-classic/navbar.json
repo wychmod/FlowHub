@@ -1,0 +1,30 @@
+{
+  "title": {
+    "message": "FlowHub",
+    "description": "Navbar title"
+  },
+  "item.label.首页": {
+    "message": "Home",
+    "description": "Navbar item label for landing page"
+  },
+  "item.label.执行旅程": {
+    "message": "Journey",
+    "description": "Navbar item label for the execution journey"
+  },
+  "item.label.可靠性": {
+    "message": "Reliability",
+    "description": "Navbar item label for reliability patterns"
+  },
+  "item.label.基准": {
+    "message": "Benchmark",
+    "description": "Navbar item label for benchmark evidence"
+  },
+  "item.label.文档": {
+    "message": "Docs",
+    "description": "Navbar item label for documentation"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item label for GitHub link"
+  }
+}

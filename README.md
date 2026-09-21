@@ -141,7 +141,7 @@ stateDiagram-v2
 | 依赖 | 要求 | 说明 |
 | --- | --- | --- |
 | JDK | 21 | 后端运行 |
-| Node.js | ≥ 18 | 前端运行 |
+| Node.js | ≥ 20（推荐 22） | 前端与 Docusaurus 展示站运行 |
 | MySQL | 8.0+，本机 3306 | 必需：需存在 `flowhub` 库与 `flowhub/flowhub` 账号，Flyway 启动时自动建表 |
 | RabbitMQ | `localhost:5672`（guest/guest） | **可选**：未启动时接口照常可用，消息待 Broker 恢复自动补发 |
 | Redis | `localhost:6379` | **可选**：未启动时进度投影自动降级，功能不受影响 |
@@ -262,7 +262,7 @@ flowhub/
 │       │   ├── service/          #   幂等受理 / CAS 抢占 / 执行体 / 发布协议 / 进度 / 恢复清理
 │       │   └── mapper|entity|vo|error|event/
 │       └── orderimport/          # 订单导入模块（与导出对称的完整垂直模块）
-└── frontend/                     # Vite + React 前端
+├── frontend/                     # Vite + React 前端
     └── src/
         ├── app/                  #   布局壳层（Sider + 顶栏 + 健康徽标）
         ├── api/                  #   防腐层（Envelope 解包 / ApiError / 下载协议 / 领域 API）
@@ -270,6 +270,8 @@ flowhub/
             ├── orders/           #   订单列表页（筛选 + 排序 + 勾选 + 导出/导入入口）
             ├── exports/          #   导出任务页（SSE 实时进度 + 下载/重试 + useExportEvents）
             └── import-jobs/      #   导入任务页（useImportEvents + PARTIAL + 错误报告）
+└── website/                      # 项目展示站（Docusaurus 3：Signal Rail 交互首页 + 双语复盘文档）
+    └── src/                      #   任务状态模型、执行工作台、事故台账与响应式视觉系统
 ```
 
 </details>

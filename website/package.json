@@ -1,0 +1,46 @@
+{
+  "name": "flowhub-website",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FlowHub 展示站：落地页 + 复盘文档阅读器（Docusaurus，中英双语，部署于 GitHub Pages）",
+  "scripts": {
+    "sync:docs": "node scripts/sync-docs.mjs",
+    "gen:inline-svg": "node scripts/gen-inline-svg.mjs",
+    "docusaurus": "docusaurus",
+    "start": "npm run sync:docs && npm run gen:inline-svg && docusaurus start",
+    "build": "npm run sync:docs && npm run gen:inline-svg && docusaurus build",
+    "serve": "docusaurus serve",
+    "clear": "docusaurus clear",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3",
+    "@docusaurus/preset-classic": "3",
+    "@docusaurus/theme-mermaid": "3",
+    "clsx": "^2.1.1",
+    "prism-react-renderer": "^2.4.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "3",
+    "@docusaurus/tsconfig": "3",
+    "@docusaurus/types": "3",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.5%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 3 chrome version",
+      "last 3 firefox version",
+      "last 5 safari version"
+    ]
+  }
+}

@@ -76,3 +76,15 @@ Desktop.ini
 ### Playwright E2E 测试产物（失败快照/截图/报告，不入库） ###
 frontend/test-results/
 frontend/playwright-report/
+
+### FlowHub 展示站（website/，Docusaurus）###
+website/node_modules/
+website/build/
+website/.docusaurus/
+website/docs/
+website/shot-*.png
+website/static/img/logo.svg
+website/static/img/logo-full.svg
+website/static/img/architecture.svg
+website/static/img/architecture.png
+website/src/components/architecture.inline.ts

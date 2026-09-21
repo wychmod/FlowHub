@@ -75,6 +75,23 @@ npm run test:watch
 
 **前端改动自动校验 hook**：仓库 `.claude/` 配置了 `PostToolUse` hook（`Write|Edit`），每当改动 `frontend/` 目录下的文件时，会自动执行 `npm test && npm run build`；任一步失败都会以非零退出码标记。因此任何对前端源码的修改都必须通过单测与构建，新增功能时应同步补充对应单测。此 hook 的校验脚本为 `.claude/hooks/check-frontend.js`，可在 `/hooks` 菜单中查看或停用。
 
+### 展示站（`website/`）
+
+FlowHub 项目展示站（Docusaurus 3：Signal Rail 交互落地页 + `doc/` 复盘文档阅读器，中英双语、深浅主题）以“可靠任务控制台”为视觉方向：首页包含任务状态流水线、六步执行工作台、八类事故防线台账、诚实性能占位与导入导出镜像图。部署到 GitHub Pages（`.github/workflows/deploy-website.yml`，master 推送 `website/`/`doc/`/`docs/images/` 变更时自动发布到 `wychmod.github.io/FlowHub/`）。设计方案见 `docs/website-plan.md`。
+
+```bash
+# 本地开发（自动同步 doc/ → website/docs/ 后启动，默认 http://localhost:3000/FlowHub/）
+npm run start
+
+# 构建生产包（含 sync:docs 与 gen-inline-svg；构建产物 website/build/）
+npm run build
+
+# 类型检查（tsc --noEmit）
+npm run typecheck
+```
+
+`website/docs/` 是 `scripts/sync-docs.mjs` 构建期从 `doc/`（事实源）生成的拷贝，已 gitignore，**禁止手改**；`website/static/img/` 的 Logo/架构资产与 `src/components/architecture.inline.ts` 由 `scripts/gen-inline-svg.mjs` 从 `docs/images/`（资产事实源）同步或生成，同样禁止手改。
+
 ### 验证地址
 
 - 前端页面：http://localhost:5174
@@ -93,7 +110,7 @@ npm run test:watch
 
 ### 验证与交付（阶段 08 记录）
 
-**本机环境要求**：任一平台需 Docker、Java 21、Node 22、Chrome。**注意：当前开发机实际为 Node v20.16.0（低于 22）+ Windows 10，本机 3306/5672/6379 运行的是原生 MySQL/RabbitMQ/Redis（属同一进程 PID 2000），8080/5174 空闲**——因此全链路可走原生依赖直连，无需 Docker 绑端口（Docker 编排仅作可选前置，端口与既有原生实例冲突时不参与）。Java 已核验 21.0.3，Chrome 存在于 `C:\Program Files\Google\Chrome\Application\chrome.exe`。
+**本机环境要求**：任一平台需 Docker、Java 21、Node 20+（推荐 22）、Chrome。**注意：当前开发机实际为 Node v24.18.0 + Windows 10，本机 3306/5672/6379 运行的是原生 MySQL/RabbitMQ/Redis（属同一进程 PID 2000），8080/5174 空闲**——因此全链路可走原生依赖直连，无需 Docker 绑端口（Docker 编排仅作可选前置，端口与既有原生实例冲突时不参与）。Java 已核验 21.0.3，Chrome 存在于 `C:\Program Files\Google\Chrome\Application\chrome.exe`。
 
 **性能基线要求（契约）**：性能采集须在受控 JVM `-Xmx512m` + 运行令牌下执行，校验 JVM PID 与身份后记录：实际数据量、创建耗时、到达终态耗时、峰值 JVM 内存(RSS)、文件大小、机器环境。**该带令牌/PID 校验的性能脚本本仓库尚未落地（属参考项目的交付物）**，落库前不伪造基准。
 

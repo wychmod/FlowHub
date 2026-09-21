@@ -1,0 +1,50 @@
+# FlowHub 展示站（website/）→ GitHub Pages 部署
+# 触发：master 上 website/、doc/（文档事实源）、docs/images/（品牌资产）或本工作流变更；也可手动。
+name: deploy-website
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'website/**'
+      - 'doc/**'
+      - 'docs/images/**'
+      - '.github/workflows/deploy-website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - uses: actions/configure-pages@v5
+      - name: 安装依赖并构建（含 doc/ 同步）
+        run: npm ci && npm run build
+        working-directory: website
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: website/build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

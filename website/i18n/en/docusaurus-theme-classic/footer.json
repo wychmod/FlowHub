@@ -1,0 +1,54 @@
+{
+  "link.title.文档": {
+    "message": "Docs",
+    "description": "Footer link column title for docs"
+  },
+  "link.item.label.复盘总览": {
+    "message": "Overview",
+    "description": "Footer link to docs overview"
+  },
+  "link.item.label.导出任务创建与幂等": {
+    "message": "Export Job Creation & Idempotency",
+    "description": "Footer link to doc 03"
+  },
+  "link.item.label.可靠投递（Outbox 与消费）": {
+    "message": "Reliable Delivery (Outbox & Consumer)",
+    "description": "Footer link to doc 04"
+  },
+  "link.item.label.订单 Excel 导入": {
+    "message": "Order Excel Import",
+    "description": "Footer link to doc 09"
+  },
+  "link.title.项目": {
+    "message": "Project",
+    "description": "Footer link column title for project"
+  },
+  "link.item.label.GitHub 仓库": {
+    "message": "GitHub Repository",
+    "description": "Footer link to GitHub repo"
+  },
+  "link.item.label.README 与快速开始": {
+    "message": "README & Quick Start",
+    "description": "Footer link to README"
+  },
+  "link.item.label.架构图（SVG）": {
+    "message": "Architecture (SVG)",
+    "description": "Footer link to architecture SVG"
+  },
+  "link.title.参考": {
+    "message": "Reference",
+    "description": "Footer link column title for reference"
+  },
+  "link.item.label.AGENTS.md 工程规范": {
+    "message": "AGENTS.md Engineering Rules",
+    "description": "Footer link to AGENTS.md"
+  },
+  "link.item.label.演进路线": {
+    "message": "Roadmap",
+    "description": "Footer link to roadmap"
+  },
+  "copyright": {
+    "message": "FlowHub — an engineering demo that explains what happens after you click \"Export\".",
+    "description": "Footer copyright"
+  }
+}
