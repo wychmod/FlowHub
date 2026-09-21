@@ -1,11 +1,13 @@
 // 构建期先同步 docs/images 品牌资产，再生成架构图的 TS 内联模块。
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const sourceDir = join(here, '..', '..', 'docs', 'images');
 const staticDir = join(here, '..', 'static', 'img');
+
+mkdirSync(staticDir, { recursive: true });
 
 for (const fileName of ['logo.svg', 'logo-full.svg', 'architecture.svg', 'architecture.png']) {
   copyFileSync(join(sourceDir, fileName), join(staticDir, fileName));
